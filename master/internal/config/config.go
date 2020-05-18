@@ -220,8 +220,15 @@ func (c Config) Printable() ([]byte, error) {
 			configCopy.TaskContainerDefaults.RegistryAuth = &printable
 		}
 	}
-	c.Scim.Username = hiddenValue
-	c.Scim.Password = hiddenValue
+
+	// When there are pointers inside the type, we need to copy things to avoid modifying the original
+	// object.
+	if origAuth := c.Scim.Auth.BasicAuthConfig; origAuth != nil {
+		auth := *origAuth
+		auth.Username = hiddenValue
+		auth.Password = hiddenValue
+		c.Scim.Auth.BasicAuthConfig = &auth
+	}
 
 	configCopy.CheckpointStorage = configCopy.CheckpointStorage.Printable()
 
