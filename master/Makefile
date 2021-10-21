@@ -14,13 +14,11 @@ export DOCKER_REPO ?= determinedai
 
 FULL_COMMIT = $(shell git rev-parse HEAD)
 SHORT_COMMIT = $(shell git rev-parse HEAD | head -c9)
-PROJECT_NAME = determined-ee-master
+PROJECT_NAME = hpe-mlde-master
 ARCHS = amd64 arm64 ppc64
 ARCH_SMALL = amd64-shared-cluster
 MULTI_ARCH_IMAGES = $(shell for arch in $(ARCHS); do echo $(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT)-$$arch; done)
 SHARED_CLUSTER_IMAGE=$(shell echo $(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT)-$(ARCH_SMALL))
-
-NVCR_REPO ?= nvcr.io/isv-ngc-partner/determined
 
 PUB_MANIFESTS = \
 	$(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT) \
@@ -29,15 +27,6 @@ PUB_MANIFESTS = \
 
 DEV_MANIFESTS = \
 	$(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT)
-
-DEV_MANIFESTS_SMALL = \
-	$(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT)-shared-cluster \
-	$(DOCKER_REPO)/determined-dev:$(PROJECT_NAME)-$(FULL_COMMIT)-shared-cluster
-
-NVCR_TAGS = \
-	$(NVCR_REPO)/$(PROJECT_NAME):$(FULL_COMMIT) \
-	$(NVCR_REPO)/$(PROJECT_NAME):$(SHORT_COMMIT) \
-	$(NVCR_REPO)/$(PROJECT_NAME):$(VERSION)
 
 .PHONY: clean
 clean: ungen
@@ -243,7 +232,6 @@ release: export GORELEASER_CURRENT_TAG := $(VERSION)-ee
 release: export GORELEASER_PREVIOUS_TAG := $(shell git tag --sort=-creatordate | grep -E '^[0-9.]+-ee$$' | grep "$(VERSION)-ee" -A1 | sed -n '2 p')
 release: gen buildx
 	$(GORELEASER) --rm-dist
-	make publish-nvcr
 
 define manifest_publish
 	for image in $(2); do \
@@ -267,10 +255,3 @@ publish-dev-small:
 .PHONY: publish
 publish:
 	@$(call manifest_publish, $(PUB_MANIFESTS), $(MULTI_ARCH_IMAGES))
-
-.PHONY: publish-nvcr
-publish-nvcr:
-	for image in $(NVCR_TAGS); do \
-		docker tag $(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT)-amd64 $$image; \
-		docker push $$image; \
-	done
