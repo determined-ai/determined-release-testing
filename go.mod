@@ -166,6 +166,7 @@ require (
 	cloud.google.com/go/storage v1.10.0
 	github.com/docker/distribution v2.8.2+incompatible
 	github.com/docker/docker-credential-helpers v0.6.4
+	github.com/fatih/color v1.15.0 // indirect
 	github.com/go-co-op/gocron/v2 v2.1.1
 	github.com/go-test/deep v1.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
@@ -199,7 +200,6 @@ require (
 )
 
 require (
-	github.com/fatih/color v1.16.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	golang.org/x/sync v0.5.0
 )
