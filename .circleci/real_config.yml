@@ -114,7 +114,7 @@ commands:
 
   add-and-fetch-upstream:
     steps:
-      - run: git remote add upstream https://github.com/determined-ai/determined
+      - run: git remote add upstream https://github.com/determined-ai/determined-ee
       - run: tools/scripts/retry.sh git fetch upstream
 
   skip-if-only-dir:
