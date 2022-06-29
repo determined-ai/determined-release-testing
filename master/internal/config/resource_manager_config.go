@@ -17,6 +17,7 @@ const defaultResourcePoolName = "default"
 type ResourceManagerConfig struct {
 	AgentRM      *AgentResourceManagerConfig      `union:"type,agent" json:"-"`
 	KubernetesRM *KubernetesResourceManagerConfig `union:"type,kubernetes" json:"-"`
+	DispatcherRM *DispatcherResourceManagerConfig `union:"type,slurm" json:"-"`
 }
 
 // Name returns the name for the resource manager.
@@ -27,7 +28,9 @@ func (r ResourceManagerConfig) Name() string {
 	if k8RM := r.KubernetesRM; k8RM != nil {
 		return k8RM.Name
 	}
-	// TODO (multirm) dispatcher.
+	if dis := r.DispatcherRM; dis != nil {
+		return dis.Name
+	}
 
 	panic(fmt.Sprintf("unknown rm type %+v", r))
 }
@@ -39,6 +42,8 @@ func (r *ResourceManagerConfig) setName(name string) {
 	case r.KubernetesRM != nil:
 		r.KubernetesRM.Name = name
 		// TODO dispatcher.
+	case r.DispatcherRM != nil:
+		r.DispatcherRM.Name = name
 	default:
 		panic(fmt.Sprintf("unknown rm type %+v", r))
 	}
@@ -61,7 +66,7 @@ func (r *ResourceManagerConfig) UnmarshalJSON(data []byte) error {
 	}
 
 	// Fill in the default config.
-	if r.AgentRM == nil && r.KubernetesRM == nil {
+	if r.AgentRM == nil && r.KubernetesRM == nil && r.DispatcherRM == nil {
 		r.AgentRM = &AgentResourceManagerConfig{
 			Scheduler: &SchedulerConfig{
 				FittingPolicy: defaultFitPolicy,
