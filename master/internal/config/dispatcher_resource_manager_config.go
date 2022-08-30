@@ -35,6 +35,7 @@ type DispatcherResourceManagerConfig struct {
 	Path                 string `json:"path"`
 	LdLibraryPath        string `json:"ld_library_path"`
 	TresSupported        bool   `json:"tres_supported"`
+	GresSupported        bool   `json:"gres_supported"`
 
 	Name     string            `json:"name"`
 	Metadata map[string]string `json:"metadata"`
@@ -59,6 +60,7 @@ func (c DispatcherResourceManagerConfig) Validate() []error {
 
 var defaultDispatcherResourceManagerConfig = DispatcherResourceManagerConfig{
 	TresSupported:            true,
+	GresSupported:            true,
 	LauncherContainerRunType: singularity,
 }
 
