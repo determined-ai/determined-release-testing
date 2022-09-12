@@ -77,7 +77,8 @@ func (r *ResourceConfig) ResolveResource() error {
 	// This feels risky to remove though.
 	if r.RootManagerInternal.AgentRM == nil &&
 		r.RootManagerInternal.KubernetesRM == nil &&
-		r.RootManagerInternal.DispatcherRM == nil {
+		r.RootManagerInternal.DispatcherRM == nil &&
+		r.RootManagerInternal.PbsRM {
 		r.RootManagerInternal.AgentRM = defaultAgentRM()
 	}
 	for _, c := range r.AdditionalResourceManagersInternal {
