@@ -709,6 +709,9 @@ commands:
               --max-dynamic-agents <<parameters.max-dynamic-agents>> \
               --keypair <<parameters.keypair>> \
               --deployment-type <<parameters.deployment-type>> \
+              --enterprise-edition \
+              --docker-user $DOCKER_USER \
+              --docker-pass $DOCKER_PASS \
               --retain-log-group \
               --initial-user-password ${INITIAL_USER_PASSWORD} \
               --yes
@@ -3881,6 +3884,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-deepspeed-tests
@@ -4011,6 +4015,7 @@ workflows:
             - aws
             - aws-ci-cluster-default-user-credentials
             - hugging-face
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-gpu-distributed-nightly
@@ -4054,6 +4059,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-gpu-nightly
@@ -4074,6 +4080,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-gpu-tests
@@ -4093,6 +4100,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-gpu-tests
@@ -4116,6 +4124,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-mmdetection-tests
@@ -4169,6 +4178,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-aws-fs-tests
@@ -4183,6 +4193,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-aws-fs-tests
@@ -4200,6 +4211,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           matrix:
             parameters:
               parallelism: [2]
@@ -4209,6 +4221,7 @@ workflows:
           name: test-e2e-gpu-distributed
           context:
             - aws
+            - determined-ee
             - hugging-face
             - aws-ci-cluster-default-user-credentials
           matrix:
@@ -4223,6 +4236,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           matrix:
             parameters:
               cluster-id-prefix: ["mmdet"]
@@ -4235,6 +4249,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           matrix:
             parameters:
               cluster-id-prefix: ["deepspeed"]
@@ -4247,6 +4262,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           matrix:
             parameters:
               cluster-id-prefix: ["distributed"]
