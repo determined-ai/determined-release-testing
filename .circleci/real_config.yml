@@ -3676,6 +3676,7 @@ workflows:
           name: test-e2e-gpu-parallel
           context:
             - aws
+            - determined-ee
             - aws-ci-cluster-default-user-credentials
           filters:
             branches:
@@ -3696,6 +3697,7 @@ workflows:
           name: test-e2e-gpu-single
           context:
             - aws
+            - determined-ee
             - aws-ci-cluster-default-user-credentials
           filters:
             branches:
@@ -3875,6 +3877,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           filters: *upstream-feature-branch
           requires:
             - request-e2e-cpu-distributed
@@ -4301,6 +4304,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           cluster-id-prefix: aws-fs-fsx
           deployment-type: fsx
           slack-mentions: "${SLACK_USER_ID}"
@@ -4313,6 +4317,7 @@ workflows:
           context:
             - aws
             - aws-ci-cluster-default-user-credentials
+            - determined-ee
           cluster-id-prefix: aws-fs-efs
           deployment-type: efs
           slack-mentions: "${SLACK_USER_ID}"
