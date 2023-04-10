@@ -157,7 +157,7 @@ func (c DispatcherResourceManagerConfig) ResolveTaskContainerDefaults(
 	partition string,
 ) *model.TaskContainerDefaultsConfig {
 	for name, overrides := range c.PartitionOverrides {
-		if name != partition {
+		if !strings.EqualFold(name, partition) {
 			continue
 		}
 		if overrides.TaskContainerDefaultsConfig == nil {
