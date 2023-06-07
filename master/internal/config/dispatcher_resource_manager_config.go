@@ -97,6 +97,8 @@ func (c DispatcherResourceManagerConfig) validateJobProjectSource() []error {
 }
 
 var defaultDispatcherResourceManagerConfig = DispatcherResourceManagerConfig{
+	LauncherPort:             8181,
+	LauncherProtocol:         "http",
 	TresSupported:            true,
 	GresSupported:            true,
 	LauncherContainerRunType: singularity,
