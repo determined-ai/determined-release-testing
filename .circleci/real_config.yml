@@ -583,6 +583,9 @@ commands:
               echo 'No test files found!'
               exit 1
             fi
+            
+            echo "Determined user list from master '<<parameters.master-host>>:<<parameters.master-port>>'"
+            det --master "<<parameters.master-host>>:<<parameters.master-port>>" user list
 
             cat /tmp/all-relevant-files | circleci tests run --command="DD_CIVISIBILITY_AGENTLESS_ENABLED=true \
             DD_SITE='datadoghq.com' \
