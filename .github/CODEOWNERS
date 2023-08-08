@@ -22,19 +22,8 @@
 /docs/index.rst     @determined-ai/docs
 /docs/**/index.rst  @determined-ai/docs
 
-# Harness is mapped to model-dev by default, except for `deploy`
-# and auto-generated bindings and version files.
-/harness                         @determined-ai/model-dev
-/harness/determined/deploy       @determined-ai/resource-mgmt
-/harness/determined/common/api/bindings.py
-/harness/determined/__version__.py
-
-/schemas                          @determined-ai/model-dev
-/bindings/generate_bindings_py.py @determined-ai/model-dev
-/e2e_tests/tests/*.py             @determined-ai/model-dev
-/e2e_tests/tests/requirements.txt @determined-ai/model-dev
-/e2e_tests/tests/experiment       @determined-ai/model-dev
-/e2e_tests/tests/nightly          @determined-ai/model-dev
+# ml-sys CODEOWNERS section is removed due to spam notifications
+# caused by the rebase workflow.
 
 # Backend owns some e2e tests.
 /e2e_tests/tests/cluster  @determined-ai/backend
