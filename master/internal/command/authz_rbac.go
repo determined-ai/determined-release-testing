@@ -226,6 +226,14 @@ func (a *NSCAuthZRBAC) CanTerminateTensorboard(
 	return a.CanTerminateNSC(ctx, curUser, workspaceID)
 }
 
+// CanCreateGenericTask returns whether or not a user can create a generic task.
+func (a *NSCAuthZRBAC) CanCreateGenericTask(
+	ctx context.Context, curUser model.User, workspaceID model.AccessScopeID,
+) error {
+	return a.checkForPermission(ctx, curUser, workspaceID,
+		rbacv1.PermissionType_PERMISSION_TYPE_CREATE_NSC)
+}
+
 func tensorboardWorkspaces(
 	ctx context.Context, experimentIDs []int32, trialIDs []int32,
 ) ([]model.AccessScopeID, error) {
