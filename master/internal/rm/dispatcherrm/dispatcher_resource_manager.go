@@ -571,20 +571,6 @@ func (m *DispatcherResourceManager) Release(msg sproto.ResourcesReleased) {
 	rmevents.Publish(msg.AllocationID, sproto.ResourcesReleasedEvent{})
 }
 
-// SetAllocationName implements rm.ResourceManager.
-func (m *DispatcherResourceManager) SetAllocationName(
-	msg sproto.SetAllocationName,
-) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	task, ok := m.reqList.TaskByID(msg.AllocationID)
-	if !ok {
-		return
-	}
-	task.Name = msg.Name
-}
-
 // SetGroupMaxSlots implements rm.ResourceManager.
 func (m *DispatcherResourceManager) SetGroupMaxSlots(
 	msg sproto.SetGroupMaxSlots,
