@@ -84,6 +84,14 @@ func (a *NSCAuthZPermissive) CanTerminateTensorboard(
 	return (&NSCAuthZBasic{}).CanTerminateTensorboard(ctx, curUser, workspaceID)
 }
 
+// CanCreateGenericTask always returns nil.
+func (a *NSCAuthZPermissive) CanCreateGenericTask(
+	ctx context.Context, curUser model.User, workspaceID model.AccessScopeID,
+) error {
+	_ = (&NSCAuthZRBAC{}).CanCreateGenericTask(ctx, curUser, workspaceID)
+	return (&NSCAuthZBasic{}).CanCreateGenericTask(ctx, curUser, workspaceID)
+}
+
 func init() {
 	AuthZProvider.Register("permissive", &NSCAuthZPermissive{})
 }
