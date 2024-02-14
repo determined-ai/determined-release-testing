@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/determined-ai/determined/master/internal/authz"
@@ -191,8 +188,7 @@ func (a *NSCAuthZRBAC) CanGetTensorboard(
 	err := a.checkForPermission(ctx, curUser, workspaceID,
 		rbacv1.PermissionType_PERMISSION_TYPE_VIEW_WORKSPACE)
 	if err != nil {
-		return authz.SubIfUnauthorized(err,
-			status.Errorf(codes.NotFound, "workspace (%d) not found", workspaceID))
+		return err
 	}
 
 	expToWorkspaceIDs, err := db.ExperimentIDsToWorkspaceIDs(ctx, experimentIDs)
