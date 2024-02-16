@@ -292,15 +292,6 @@ func (m *DispatcherResourceManager) GetAllocationSummaries(
 	return m.reqList.TaskSummaries(m.groups, string(m.wlmType)), nil
 }
 
-// GetAllocationSummary implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetAllocationSummary(
-	msg sproto.GetAllocationSummary,
-) (*sproto.AllocationSummary, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.reqList.TaskSummary(msg.ID, m.groups, string(m.wlmType)), nil
-}
-
 // GetDefaultAuxResourcePool implements rm.ResourceManager.
 func (m *DispatcherResourceManager) GetDefaultAuxResourcePool(
 	msg sproto.GetDefaultAuxResourcePoolRequest,
