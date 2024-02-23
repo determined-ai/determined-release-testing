@@ -77,7 +77,7 @@ func getMasterURL(config *config.Config) (*url.URL, error) {
 	// DET-2035: move master URL field out of provisioner and avoid brittle
 	// inference of the master URL.
 	s := "http://localhost:8080"
-	for _, pool := range config.ResourcePools {
+	for _, pool := range config.ResourceManagers()[0].ResourcePools {
 		if pool.Provider != nil {
 			s = pool.Provider.MasterURL
 			break

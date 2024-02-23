@@ -126,7 +126,7 @@ type DispatcherResourceManager struct {
 func New(
 	db *db.PgDB,
 	echo *echoV4.Echo,
-	cfg *config.ResourceConfig,
+	cfg *config.ResourceManagerWithPoolsConfig,
 	opts *aproto.MasterSetAgentOptions,
 	cert *tls.Certificate,
 ) *DispatcherResourceManager {
@@ -583,27 +583,13 @@ func (*DispatcherResourceManager) SetGroupWeight(sproto.SetGroupWeight) error {
 	return rmerrors.UnsupportedError("set group weight unsupported in the dispatcher RM")
 }
 
-// ValidateCommandResources implements rm.ResourceManager.
-func (*DispatcherResourceManager) ValidateCommandResources(
-	sproto.ValidateCommandResourcesRequest,
-) (sproto.ValidateCommandResourcesResponse, error) {
-	// TODO(HAL-2862): Use inferred value here if possible.
-	// fulfillable := m.config.MaxSlotsPerContainer >= msg.Slots
-	return sproto.ValidateCommandResourcesResponse{Fulfillable: true}, nil
-}
-
-// ValidateResourcePoolAvailability implements rm.ResourceManager.
-func (*DispatcherResourceManager) ValidateResourcePoolAvailability(
-	*sproto.ValidateResourcePoolAvailabilityRequest,
-) ([]command.LaunchWarning, error) {
-	return nil, nil
-}
-
 // ValidateResources implements rm.ResourceManager.
 func (*DispatcherResourceManager) ValidateResources(
-	string, int, bool,
-) error {
-	return nil
+	sproto.ValidateResourcesRequest,
+) (sproto.ValidateResourcesResponse, []command.LaunchWarning, error) {
+	// TODO(HAL-2862): Use inferred value here if possible.
+	// fulfillable := m.config.MaxSlotsPerContainer >= msg.Slots
+	return sproto.ValidateResourcesResponse{Fulfillable: true}, nil, nil
 }
 
 // DisableAgent adds an agent to the exclude list when launching jobs.
