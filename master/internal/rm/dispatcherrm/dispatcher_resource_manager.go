@@ -319,26 +319,24 @@ func (m *DispatcherResourceManager) GetDefaultComputeResourcePool(
 }
 
 // GetExternalJobs implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetExternalJobs(
-	msg sproto.GetExternalJobs,
-) ([]*jobv1.Job, error) {
-	return m.jobWatcher.fetchExternalJobs(msg.ResourcePool), nil
+func (m *DispatcherResourceManager) GetExternalJobs(_, rpName string) ([]*jobv1.Job, error) {
+	return m.jobWatcher.fetchExternalJobs(rpName), nil
 }
 
 // GetJobQ implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetJobQ(
-	msg sproto.GetJobQ,
-) (map[model.JobID]*sproto.RMJobInfo, error) {
+func (m *DispatcherResourceManager) GetJobQ(_, rpName string) (
+	map[model.JobID]*sproto.RMJobInfo, error,
+) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if len(strings.TrimSpace(msg.ResourcePool)) == 0 {
-		msg.ResourcePool = m.hpcDetailsCache.lastSample.Load().DefaultComputePoolPartition
-		m.syslog.WithField("resource-pool", msg.ResourcePool).
+	if len(strings.TrimSpace(rpName)) == 0 {
+		rpName = m.hpcDetailsCache.lastSample.Load().DefaultComputePoolPartition
+		m.syslog.WithField("resource-pool", rpName).
 			Trace("no resource pool name provided, selected the default compute pool")
 	}
 	var reqs []*sproto.AllocateRequest
 	for it := m.reqList.Iterator(); it.Next(); {
-		if it.Value().ResourcePool == msg.ResourcePool {
+		if it.Value().ResourcePool == rpName {
 			reqs = append(reqs, it.Value())
 		}
 	}
@@ -510,7 +508,7 @@ func (m *DispatcherResourceManager) getLauncherProvidedPools(
 }
 
 // MoveJob implements rm.ResourceManager.
-func (*DispatcherResourceManager) MoveJob(sproto.MoveJob) error {
+func (*DispatcherResourceManager) MoveJob(_ string, req sproto.MoveJob) error {
 	// TODO(HAL-2863): We may not be able to support these specific actions, but how we
 	// let people interact with the job queue in dispatcher/slurm world.
 	// ctx.Respond(fmt.Errorf("modifying job positions is not yet supported in slurm"))
@@ -518,7 +516,7 @@ func (*DispatcherResourceManager) MoveJob(sproto.MoveJob) error {
 }
 
 // RecoverJobPosition implements rm.ResourceManager.
-func (m *DispatcherResourceManager) RecoverJobPosition(sproto.RecoverJobPosition) {
+func (m *DispatcherResourceManager) RecoverJobPosition(string, sproto.RecoverJobPosition) {
 	m.syslog.Warn("move job unsupported in the dispatcher RM")
 }
 
@@ -572,13 +570,13 @@ func (m *DispatcherResourceManager) SetGroupMaxSlots(
 }
 
 // SetGroupPriority implements rm.ResourceManager.
-func (*DispatcherResourceManager) SetGroupPriority(sproto.SetGroupPriority) error {
+func (*DispatcherResourceManager) SetGroupPriority(string, sproto.SetGroupPriority) error {
 	// TODO(HAL-2863)
 	return rmerrors.UnsupportedError("set group priority unsupported in the dispatcher RM")
 }
 
 // SetGroupWeight implements rm.ResourceManager.
-func (*DispatcherResourceManager) SetGroupWeight(sproto.SetGroupWeight) error {
+func (*DispatcherResourceManager) SetGroupWeight(string, sproto.SetGroupWeight) error {
 	// TODO(HAL-2863)
 	return rmerrors.UnsupportedError("set group weight unsupported in the dispatcher RM")
 }
