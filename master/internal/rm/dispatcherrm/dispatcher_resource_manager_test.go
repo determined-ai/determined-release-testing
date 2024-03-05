@@ -473,8 +473,12 @@ func Test_summarizeResourcePool(t *testing.T) {
 				Partitions: tt.partitions,
 			}
 
+			expectedName := "testnamerm"
+			expectedMetadata := map[string]string{"abc": "dce"}
 			overrides := make(map[string]config.DispatcherPartitionOverrideConfigs)
 			rmConfig := &config.DispatcherResourceManagerConfig{
+				Name:               expectedName,
+				Metadata:           expectedMetadata,
 				PartitionOverrides: overrides,
 			}
 
@@ -525,6 +529,8 @@ func Test_summarizeResourcePool(t *testing.T) {
 				assert.Equal(t, pool.Location, "")
 				assert.Equal(t, pool.InstanceType, "")
 				assert.Equal(t, pool.ImageId, "")
+				assert.Equal(t, pool.ResourceManagerName, expectedName)
+				require.Equal(t, pool.ResourceManagerMetadata, expectedMetadata)
 			}
 		})
 	}

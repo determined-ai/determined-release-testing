@@ -456,6 +456,8 @@ func (m *DispatcherResourceManager) GetResourcePools() (*apiv1.GetResourcePoolsR
 			InstanceType:                 "",
 			Details:                      &resourcepoolv1.ResourcePoolDetail{},
 			Accelerator:                  v.Accelerator,
+			ResourceManagerName:          m.rmConfig.Name,
+			ResourceManagerMetadata:      m.rmConfig.Metadata,
 		}
 		poolNameMap[pool.Name] = &pool
 		result = append(result, &pool)
