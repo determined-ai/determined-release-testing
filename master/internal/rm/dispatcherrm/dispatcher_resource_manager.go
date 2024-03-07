@@ -205,9 +205,7 @@ func New(
 }
 
 // Allocate adds a task to the queue to be allocated.
-func (m *DispatcherResourceManager) Allocate(
-	_ string, msg sproto.AllocateRequest,
-) (*sproto.ResourcesSubscription, error) {
+func (m *DispatcherResourceManager) Allocate(msg sproto.AllocateRequest) (*sproto.ResourcesSubscription, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -244,20 +242,20 @@ func (m *DispatcherResourceManager) DeleteJob(
 }
 
 // ExternalPreemptionPending notifies a task of a preemption from the underlying resource manager.
-func (m *DispatcherResourceManager) ExternalPreemptionPending(allocID model.AllocationID) error {
+func (m *DispatcherResourceManager) ExternalPreemptionPending(msg sproto.PendingPreemption) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.syslog.WithField("allocation-id", allocID).
+	m.syslog.WithField("allocation-id", msg.AllocationID).
 		Info("pending preemption of allocation, terminating")
-	allocReq, ok := m.reqList.TaskByID(allocID)
+	allocReq, ok := m.reqList.TaskByID(msg.AllocationID)
 	if ok {
 		rmevents.Publish(allocReq.AllocationID, &sproto.ReleaseResources{
 			Reason:          "preempted by the scheduler",
 			ForcePreemption: true,
 		})
 	} else {
-		m.syslog.WithField("allocation-id", allocID).
+		m.syslog.WithField("allocation-id", msg.AllocationID).
 			Errorf("unable to find allocation actor for allocation")
 	}
 	return nil
@@ -266,7 +264,7 @@ func (m *DispatcherResourceManager) ExternalPreemptionPending(allocID model.Allo
 // GetAgents implements rm.ResourceManager.
 // Note to developers: this function must not acquire locks, since it is polled to saturate
 // the UI.
-func (m *DispatcherResourceManager) GetAgents() (*apiv1.GetAgentsResponse, error) {
+func (m *DispatcherResourceManager) GetAgents(*apiv1.GetAgentsRequest) (*apiv1.GetAgentsResponse, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return nil, err
@@ -280,7 +278,7 @@ func (m *DispatcherResourceManager) GetAgents() (*apiv1.GetAgentsResponse, error
 }
 
 // GetAllocationSummaries implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetAllocationSummaries() (
+func (m *DispatcherResourceManager) GetAllocationSummaries(sproto.GetAllocationSummaries) (
 	map[model.AllocationID]sproto.AllocationSummary, error,
 ) {
 	m.mu.Lock()
@@ -289,8 +287,9 @@ func (m *DispatcherResourceManager) GetAllocationSummaries() (
 }
 
 // GetDefaultAuxResourcePool implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetDefaultAuxResourcePool(string,
-) (sproto.GetDefaultAuxResourcePoolResponse, error) {
+func (m *DispatcherResourceManager) GetDefaultAuxResourcePool(sproto.GetDefaultAuxResourcePoolRequest) (
+	sproto.GetDefaultAuxResourcePoolResponse, error,
+) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return sproto.GetDefaultAuxResourcePoolResponse{}, err
@@ -301,8 +300,9 @@ func (m *DispatcherResourceManager) GetDefaultAuxResourcePool(string,
 }
 
 // GetDefaultComputeResourcePool implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetDefaultComputeResourcePool(string,
-) (sproto.GetDefaultComputeResourcePoolResponse, error) {
+func (m *DispatcherResourceManager) GetDefaultComputeResourcePool(sproto.GetDefaultComputeResourcePoolRequest) (
+	sproto.GetDefaultComputeResourcePoolResponse, error,
+) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return sproto.GetDefaultComputeResourcePoolResponse{}, err
@@ -313,24 +313,24 @@ func (m *DispatcherResourceManager) GetDefaultComputeResourcePool(string,
 }
 
 // GetExternalJobs implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetExternalJobs(_, rpName string) ([]*jobv1.Job, error) {
-	return m.jobWatcher.fetchExternalJobs(rpName), nil
+func (m *DispatcherResourceManager) GetExternalJobs(msg sproto.GetExternalJobs) ([]*jobv1.Job, error) {
+	return m.jobWatcher.fetchExternalJobs(msg.ResourcePool), nil
 }
 
 // GetJobQ implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetJobQ(_, rpName string) (
+func (m *DispatcherResourceManager) GetJobQ(msg sproto.GetJobQ) (
 	map[model.JobID]*sproto.RMJobInfo, error,
 ) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if len(strings.TrimSpace(rpName)) == 0 {
-		rpName = m.hpcDetailsCache.lastSample.Load().DefaultComputePoolPartition
-		m.syslog.WithField("resource-pool", rpName).
+	if len(strings.TrimSpace(msg.ResourcePool)) == 0 {
+		msg.ResourcePool = m.hpcDetailsCache.lastSample.Load().DefaultComputePoolPartition
+		m.syslog.WithField("resource-pool", msg.ResourcePool).
 			Trace("no resource pool name provided, selected the default compute pool")
 	}
 	var reqs []*sproto.AllocateRequest
 	for it := m.reqList.Iterator(); it.Next(); {
-		if it.Value().ResourcePool == rpName {
+		if it.Value().ResourcePool == msg.ResourcePool {
 			reqs = append(reqs, it.Value())
 		}
 	}
@@ -340,7 +340,7 @@ func (m *DispatcherResourceManager) GetJobQ(_, rpName string) (
 // GetJobQueueStatsRequest implements rm.ResourceManager.
 // This and other job queue saturation points should be refactored to not take locks.
 func (m *DispatcherResourceManager) GetJobQueueStatsRequest(
-	_ string, msg *apiv1.GetJobQueueStatsRequest,
+	msg *apiv1.GetJobQueueStatsRequest,
 ) (*apiv1.GetJobQueueStatsResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -350,7 +350,7 @@ func (m *DispatcherResourceManager) GetJobQueueStatsRequest(
 	var resp apiv1.GetJobQueueStatsResponse
 	// If no list of resource pools has been specified, return data for all pools.
 	if len(msg.ResourcePools) == 0 {
-		resourcePools, err := m.GetResourcePools()
+		resourcePools, err := m.GetResourcePools(&apiv1.GetResourcePoolsRequest{})
 		if err != nil {
 			return nil, err
 		}
@@ -375,7 +375,7 @@ func (m *DispatcherResourceManager) GetJobQueueStatsRequest(
 func (m *DispatcherResourceManager) getCombinedJobStats(resourcePool string) *jobv1.QueueStats {
 	var determinedJobStats *jobv1.QueueStats
 	if resourcePool != "" {
-		determinedJobStats = tasklist.JobStatsByPool(m.reqList, "", resourcePool)
+		determinedJobStats = tasklist.JobStatsByPool(m.reqList, resourcePool)
 	} else {
 		determinedJobStats = tasklist.JobStats(m.reqList)
 	}
@@ -389,7 +389,9 @@ func (m *DispatcherResourceManager) getCombinedJobStats(resourcePool string) *jo
 // GetResourcePools retrieves details regarding hpc resources of the underlying system.
 // Note to developers: this function must not acquire locks, since it is polled to saturate
 // the UI.
-func (m *DispatcherResourceManager) GetResourcePools() (*apiv1.GetResourcePoolsResponse, error) {
+func (m *DispatcherResourceManager) GetResourcePools(*apiv1.GetResourcePoolsRequest) (
+	*apiv1.GetResourcePoolsResponse, error,
+) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return nil, err
@@ -502,7 +504,7 @@ func (m *DispatcherResourceManager) getLauncherProvidedPools(
 }
 
 // MoveJob implements rm.ResourceManager.
-func (*DispatcherResourceManager) MoveJob(_ string, req sproto.MoveJob) error {
+func (*DispatcherResourceManager) MoveJob(req sproto.MoveJob) error {
 	// TODO(HAL-2863): We may not be able to support these specific actions, but how we
 	// let people interact with the job queue in dispatcher/slurm world.
 	// ctx.Respond(fmt.Errorf("modifying job positions is not yet supported in slurm"))
@@ -510,12 +512,12 @@ func (*DispatcherResourceManager) MoveJob(_ string, req sproto.MoveJob) error {
 }
 
 // RecoverJobPosition implements rm.ResourceManager.
-func (m *DispatcherResourceManager) RecoverJobPosition(string, sproto.RecoverJobPosition) {
+func (m *DispatcherResourceManager) RecoverJobPosition(sproto.RecoverJobPosition) {
 	m.syslog.Warn("move job unsupported in the dispatcher RM")
 }
 
 // Release implements rm.ResourceManager.
-func (m *DispatcherResourceManager) Release(_ string, msg sproto.ResourcesReleased) {
+func (m *DispatcherResourceManager) Release(msg sproto.ResourcesReleased) {
 	if msg.ResourcesID != nil {
 		// This optimization does not apply to dispatcher RM, since slurm or pbs is the actual RM.
 		return
@@ -556,7 +558,7 @@ func (m *DispatcherResourceManager) Release(_ string, msg sproto.ResourcesReleas
 
 // SetGroupMaxSlots implements rm.ResourceManager.
 func (m *DispatcherResourceManager) SetGroupMaxSlots(
-	_ string, msg sproto.SetGroupMaxSlots,
+	msg sproto.SetGroupMaxSlots,
 ) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -564,30 +566,29 @@ func (m *DispatcherResourceManager) SetGroupMaxSlots(
 }
 
 // SetGroupPriority implements rm.ResourceManager.
-func (*DispatcherResourceManager) SetGroupPriority(string, sproto.SetGroupPriority) error {
+func (*DispatcherResourceManager) SetGroupPriority(sproto.SetGroupPriority) error {
 	// TODO(HAL-2863)
 	return rmerrors.UnsupportedError("set group priority unsupported in the dispatcher RM")
 }
 
 // SetGroupWeight implements rm.ResourceManager.
-func (*DispatcherResourceManager) SetGroupWeight(string, sproto.SetGroupWeight) error {
+func (*DispatcherResourceManager) SetGroupWeight(sproto.SetGroupWeight) error {
 	// TODO(HAL-2863)
 	return rmerrors.UnsupportedError("set group weight unsupported in the dispatcher RM")
 }
 
 // ValidateResources implements rm.ResourceManager.
 func (*DispatcherResourceManager) ValidateResources(
-	_ string, req sproto.ValidateResourcesRequest,
-) ([]command.LaunchWarning, error) {
+	req sproto.ValidateResourcesRequest,
+) (sproto.ValidateResourcesResponse, []command.LaunchWarning, error) {
 	// TODO(HAL-2862): Use inferred value here if possible.
 	// fulfillable := m.config.MaxSlotsPerContainer >= msg.Slots
-	return nil, nil
+	return sproto.ValidateResourcesResponse{}, nil, nil
 }
 
 // DisableAgent adds an agent to the exclude list when launching jobs.
 // Note to developers: this function doesn't acquire a lock and, ideally, we won't make it.
-func (m *DispatcherResourceManager) DisableAgent(
-	_ string, msg *apiv1.DisableAgentRequest,
+func (m *DispatcherResourceManager) DisableAgent(msg *apiv1.DisableAgentRequest,
 ) (*apiv1.DisableAgentResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -611,7 +612,7 @@ func (m *DispatcherResourceManager) DisableAgent(
 // EnableAgent removes an agent from the exclude list when launching jobs.
 // Note to developers: this function doesn't acquire a lock and, ideally, we won't make it.
 func (m *DispatcherResourceManager) EnableAgent(
-	_ string, msg *apiv1.EnableAgentRequest,
+	msg *apiv1.EnableAgentRequest,
 ) (*apiv1.EnableAgentResponse, error) {
 	if m.wlmType == pbsSchedulerType {
 		return nil, errors.New("enable agent is not supported for PBS")
@@ -633,7 +634,7 @@ func (m *DispatcherResourceManager) EnableAgent(
 // GetAgent implements rm.ResourceManager.
 // Note to developers: this function must not acquire locks, since it is called to saturate UIs.
 func (m *DispatcherResourceManager) GetAgent(
-	_ string, msg *apiv1.GetAgentRequest,
+	msg *apiv1.GetAgentRequest,
 ) (*apiv1.GetAgentResponse, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
@@ -649,12 +650,12 @@ func (m *DispatcherResourceManager) GetAgent(
 }
 
 // GetSlot is unsupported.
-func (*DispatcherResourceManager) GetSlot(string, *apiv1.GetSlotRequest) (*apiv1.GetSlotResponse, error) {
+func (*DispatcherResourceManager) GetSlot(*apiv1.GetSlotRequest) (*apiv1.GetSlotResponse, error) {
 	return nil, rmerrors.ErrNotSupported
 }
 
 // GetSlots is unsupported.
-func (*DispatcherResourceManager) GetSlots(string, *apiv1.GetSlotsRequest) (*apiv1.GetSlotsResponse, error) {
+func (*DispatcherResourceManager) GetSlots(*apiv1.GetSlotsRequest) (*apiv1.GetSlotsResponse, error) {
 	return nil, rmerrors.ErrNotSupported
 }
 
@@ -662,71 +663,69 @@ func (*DispatcherResourceManager) GetSlots(string, *apiv1.GetSlotsRequest) (*api
 // can't be resolved due to internal errors.
 // Note to developers: this function doesn't acquire a lock and, ideally, we won't make it, since
 // it is called a lot.
-func (m *DispatcherResourceManager) ResolveResourcePool(
-	rmName string, req sproto.ResolveResourcesRequest,
-) (string, string, error) {
+func (m *DispatcherResourceManager) ResolveResourcePool(name string, workspace, slots int) (string, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
-		return rmName, "", err
+		return "", err
 	}
 
 	ctx := context.TODO()
-	defaultComputePool, defaultAuxPool, err := db.GetDefaultPoolsForWorkspace(ctx, req.Workspace)
+	defaultComputePool, defaultAuxPool, err := db.GetDefaultPoolsForWorkspace(ctx, workspace)
 	if err != nil {
-		return rmName, "", err
+		return "", err
 	}
 
 	// If the resource pool isn't set, fill in the default at creation time.
-	if req.ResourcePool == "" && req.Slots == 0 {
+	if name == "" && slots == 0 {
 		if defaultAuxPool == "" {
-			req.ResourcePool = hpcDetails.DefaultAuxPoolPartition
+			name = hpcDetails.DefaultAuxPoolPartition
 		} else {
-			req.ResourcePool = defaultAuxPool
+			name = defaultAuxPool
 		}
 	}
 
-	if req.ResourcePool == "" && req.Slots >= 0 {
+	if name == "" && slots >= 0 {
 		if defaultComputePool == "" {
-			req.ResourcePool = hpcDetails.DefaultComputePoolPartition
+			name = hpcDetails.DefaultComputePoolPartition
 		} else {
-			req.ResourcePool = defaultComputePool
+			name = defaultComputePool
 		}
 	}
 
-	resp, err := m.GetResourcePools()
+	resp, err := m.GetResourcePools(&apiv1.GetResourcePoolsRequest{})
 	if err != nil {
-		return rmName, "", err
+		return "", err
 	}
 
 	poolNames, _, err := db.ReadRPsAvailableToWorkspace(
-		ctx, int32(req.Workspace), 0, -1, rmutils.ResourcePoolsToConfig(resp.ResourcePools))
+		ctx, int32(workspace), 0, -1, rmutils.ResourcePoolsToConfig(resp.ResourcePools))
 	if err != nil {
-		return rmName, "", err
+		return "", err
 	}
 	found := false
 	for _, poolName := range poolNames {
-		if req.ResourcePool == poolName {
+		if name == poolName {
 			found = true
 			break
 		}
 	}
 	if !found {
-		return rmName, "", fmt.Errorf(
+		return "", fmt.Errorf(
 			"resource pool %s does not exist or is not available to workspace id %d",
-			req.ResourcePool, req.Workspace)
+			name, workspace)
 	}
 
-	_, err = m.validateResourcePool(hpcDetails, req.ResourcePool)
+	_, err = m.validateResourcePool(hpcDetails, name)
 	if err != nil {
-		return rmName, "", fmt.Errorf("validating resource pool: %w", err)
+		return "", fmt.Errorf("validating resource pool: %w", err)
 	}
-	return rmName, req.ResourcePool, nil
+	return name, nil
 }
 
 // ValidateResourcePool validates that the given resource pool exists.
 // Note to developers: this function doesn't acquire a lock and, ideally, we won't make it, since
 // it is called a lot.
-func (m *DispatcherResourceManager) ValidateResourcePool(_, name string) error {
+func (m *DispatcherResourceManager) ValidateResourcePool(name string) error {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return err
@@ -763,7 +762,7 @@ func (m *DispatcherResourceManager) IsReattachEnabled() bool {
 
 // IsReattachableOnlyAfterStarted is always false for dispatcher-based job schedulers
 // as the start_time is not set on our allocations.
-func (m *DispatcherResourceManager) IsReattachableOnlyAfterStarted(string) bool {
+func (m *DispatcherResourceManager) IsReattachableOnlyAfterStarted() bool {
 	return false
 }
 
@@ -2168,7 +2167,7 @@ type taskContainerDefaults struct {
 // TaskContainerDefaults returns TaskContainerDefaults for the specified pool.
 // Note to developers: this function doesn't need to acquire a lock. Let's keep it that way.
 func (m *DispatcherResourceManager) TaskContainerDefaults(
-	_, resourcePoolName string,
+	resourcePoolName string,
 	defaultConfig model.TaskContainerDefaultsConfig,
 ) (model.TaskContainerDefaultsConfig, error) {
 	result := defaultConfig
@@ -2204,15 +2203,13 @@ func (m *DispatcherResourceManager) TaskContainerDefaults(
 }
 
 // EnableSlot implements 'det slot enable...' functionality.
-func (m *DispatcherResourceManager) EnableSlot(
-	string, *apiv1.EnableSlotRequest,
+func (m *DispatcherResourceManager) EnableSlot(*apiv1.EnableSlotRequest,
 ) (resp *apiv1.EnableSlotResponse, err error) {
 	return nil, errNotSupportedOnHpcCluster
 }
 
 // DisableSlot implements 'det slot disable...' functionality.
-func (m *DispatcherResourceManager) DisableSlot(
-	string, *apiv1.DisableSlotRequest,
+func (m *DispatcherResourceManager) DisableSlot(*apiv1.DisableSlotRequest,
 ) (resp *apiv1.DisableSlotResponse, err error) {
 	return nil, errNotSupportedOnHpcCluster
 }
