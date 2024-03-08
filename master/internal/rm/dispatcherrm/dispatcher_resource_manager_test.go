@@ -14,7 +14,6 @@ import (
 	"github.com/determined-ai/determined/master/pkg/model"
 	"github.com/determined-ai/determined/master/pkg/schemas/expconf"
 	"github.com/determined-ai/determined/proto/pkg/agentv1"
-	"github.com/determined-ai/determined/proto/pkg/apiv1"
 	"github.com/determined-ai/determined/proto/pkg/containerv1"
 	"github.com/determined-ai/determined/proto/pkg/devicev1"
 	"github.com/determined-ai/determined/proto/pkg/resourcepoolv1"
@@ -181,7 +180,7 @@ func Test_generateGetAgentsResponse(t *testing.T) {
 
 	m.dbState.DisabledAgents = []string{"Node 2"}
 
-	resp, err := m.GetAgents(&apiv1.GetAgentsRequest{})
+	resp, err := m.GetAgents()
 	require.NoError(t, err)
 	assert.Equal(t, len(resp.Agents), len(nodes))
 
@@ -508,7 +507,7 @@ func Test_summarizeResourcePool(t *testing.T) {
 				poolConfig:      dpPools,
 			}
 
-			res, _ := m.GetResourcePools(&apiv1.GetResourcePoolsRequest{})
+			res, _ := m.GetResourcePools()
 
 			assert.Equal(t, len(tt.want.pools), len(res.ResourcePools))
 			for i, pool := range res.ResourcePools {

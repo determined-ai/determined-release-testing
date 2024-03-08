@@ -264,7 +264,7 @@ func (m *DispatcherResourceManager) ExternalPreemptionPending(msg sproto.Pending
 // GetAgents implements rm.ResourceManager.
 // Note to developers: this function must not acquire locks, since it is polled to saturate
 // the UI.
-func (m *DispatcherResourceManager) GetAgents(*apiv1.GetAgentsRequest) (*apiv1.GetAgentsResponse, error) {
+func (m *DispatcherResourceManager) GetAgents() (*apiv1.GetAgentsResponse, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return nil, err
@@ -278,7 +278,7 @@ func (m *DispatcherResourceManager) GetAgents(*apiv1.GetAgentsRequest) (*apiv1.G
 }
 
 // GetAllocationSummaries implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetAllocationSummaries(sproto.GetAllocationSummaries) (
+func (m *DispatcherResourceManager) GetAllocationSummaries() (
 	map[model.AllocationID]sproto.AllocationSummary, error,
 ) {
 	m.mu.Lock()
@@ -287,50 +287,42 @@ func (m *DispatcherResourceManager) GetAllocationSummaries(sproto.GetAllocationS
 }
 
 // GetDefaultAuxResourcePool implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetDefaultAuxResourcePool(sproto.GetDefaultAuxResourcePoolRequest) (
-	sproto.GetDefaultAuxResourcePoolResponse, error,
-) {
+func (m *DispatcherResourceManager) GetDefaultAuxResourcePool() (string, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
-		return sproto.GetDefaultAuxResourcePoolResponse{}, err
+		return "", err
 	}
-	return sproto.GetDefaultAuxResourcePoolResponse{
-		PoolName: hpcDetails.DefaultAuxPoolPartition,
-	}, nil
+	return hpcDetails.DefaultAuxPoolPartition, nil
 }
 
 // GetDefaultComputeResourcePool implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetDefaultComputeResourcePool(sproto.GetDefaultComputeResourcePoolRequest) (
-	sproto.GetDefaultComputeResourcePoolResponse, error,
-) {
+func (m *DispatcherResourceManager) GetDefaultComputeResourcePool() (string, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
-		return sproto.GetDefaultComputeResourcePoolResponse{}, err
+		return "", err
 	}
-	return sproto.GetDefaultComputeResourcePoolResponse{
-		PoolName: hpcDetails.DefaultComputePoolPartition,
-	}, nil
+	return hpcDetails.DefaultComputePoolPartition, nil
 }
 
 // GetExternalJobs implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetExternalJobs(msg sproto.GetExternalJobs) ([]*jobv1.Job, error) {
-	return m.jobWatcher.fetchExternalJobs(msg.ResourcePool), nil
+func (m *DispatcherResourceManager) GetExternalJobs(rpName string) ([]*jobv1.Job, error) {
+	return m.jobWatcher.fetchExternalJobs(rpName), nil
 }
 
 // GetJobQ implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetJobQ(msg sproto.GetJobQ) (
+func (m *DispatcherResourceManager) GetJobQ(rpName string) (
 	map[model.JobID]*sproto.RMJobInfo, error,
 ) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if len(strings.TrimSpace(msg.ResourcePool)) == 0 {
-		msg.ResourcePool = m.hpcDetailsCache.lastSample.Load().DefaultComputePoolPartition
-		m.syslog.WithField("resource-pool", msg.ResourcePool).
+	if len(strings.TrimSpace(rpName)) == 0 {
+		rpName = m.hpcDetailsCache.lastSample.Load().DefaultComputePoolPartition
+		m.syslog.WithField("resource-pool", rpName).
 			Trace("no resource pool name provided, selected the default compute pool")
 	}
 	var reqs []*sproto.AllocateRequest
 	for it := m.reqList.Iterator(); it.Next(); {
-		if it.Value().ResourcePool == msg.ResourcePool {
+		if it.Value().ResourcePool == rpName {
 			reqs = append(reqs, it.Value())
 		}
 	}
@@ -350,7 +342,7 @@ func (m *DispatcherResourceManager) GetJobQueueStatsRequest(
 	var resp apiv1.GetJobQueueStatsResponse
 	// If no list of resource pools has been specified, return data for all pools.
 	if len(msg.ResourcePools) == 0 {
-		resourcePools, err := m.GetResourcePools(&apiv1.GetResourcePoolsRequest{})
+		resourcePools, err := m.GetResourcePools()
 		if err != nil {
 			return nil, err
 		}
@@ -389,7 +381,7 @@ func (m *DispatcherResourceManager) getCombinedJobStats(resourcePool string) *jo
 // GetResourcePools retrieves details regarding hpc resources of the underlying system.
 // Note to developers: this function must not acquire locks, since it is polled to saturate
 // the UI.
-func (m *DispatcherResourceManager) GetResourcePools(*apiv1.GetResourcePoolsRequest) (
+func (m *DispatcherResourceManager) GetResourcePools() (
 	*apiv1.GetResourcePoolsResponse, error,
 ) {
 	hpcDetails, err := m.hpcDetailsCache.load()
@@ -580,10 +572,10 @@ func (*DispatcherResourceManager) SetGroupWeight(sproto.SetGroupWeight) error {
 // ValidateResources implements rm.ResourceManager.
 func (*DispatcherResourceManager) ValidateResources(
 	req sproto.ValidateResourcesRequest,
-) (sproto.ValidateResourcesResponse, []command.LaunchWarning, error) {
+) ([]command.LaunchWarning, error) {
 	// TODO(HAL-2862): Use inferred value here if possible.
 	// fulfillable := m.config.MaxSlotsPerContainer >= msg.Slots
-	return sproto.ValidateResourcesResponse{}, nil, nil
+	return nil, nil
 }
 
 // DisableAgent adds an agent to the exclude list when launching jobs.
@@ -692,7 +684,7 @@ func (m *DispatcherResourceManager) ResolveResourcePool(name string, workspace, 
 		}
 	}
 
-	resp, err := m.GetResourcePools(&apiv1.GetResourcePoolsRequest{})
+	resp, err := m.GetResourcePools()
 	if err != nil {
 		return "", err
 	}

@@ -23,9 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/determined-ai/determined/master/internal/rm/agentrm"
-	"github.com/determined-ai/determined/master/internal/rm/kubernetesrm"
-
 	"github.com/coreos/go-systemd/activation"
 	"github.com/google/uuid"
 	"github.com/labstack/echo-contrib/prometheus"
@@ -58,6 +55,9 @@ import (
 	"github.com/determined-ai/determined/master/internal/prom"
 	"github.com/determined-ai/determined/master/internal/proxy"
 	"github.com/determined-ai/determined/master/internal/rm"
+	"github.com/determined-ai/determined/master/internal/rm/agentrm"
+	"github.com/determined-ai/determined/master/internal/rm/dispatcherrm"
+	"github.com/determined-ai/determined/master/internal/rm/kubernetesrm"
 	"github.com/determined-ai/determined/master/internal/rm/multirm"
 	"github.com/determined-ai/determined/master/internal/rm/tasklist"
 	"github.com/determined-ai/determined/master/internal/sproto"
@@ -1073,6 +1073,9 @@ func buildRM(
 			return agentrm.New(db, echo, config, opts, cert)
 		case config.ResourceManager.KubernetesRM != nil:
 			return kubernetesrm.New(db, config, tcd, opts, cert)
+		case config.ResourceManager.DispatcherRM != nil,
+			config.ResourceManager.PbsRM != nil:
+			return dispatcherrm.New(db, echo, config, opts, cert)
 		default:
 			return nil, fmt.Errorf("no expected resource manager config is defined")
 		}
