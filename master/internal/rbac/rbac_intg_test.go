@@ -310,7 +310,10 @@ func TestRbac(t *testing.T) {
 			require.NoError(t, err, "failure inserting permission assignments in local setup")
 		}
 
-		allRoles, _, err := GetAllRoles(ctx, false, 0, 10)
+		total, err := db.Bun().NewSelect().Table("roles").Count(ctx)
+		require.NoError(t, err, "error counting number of roles")
+
+		allRoles, _, err := GetAllRoles(ctx, false, 0, total)
 		roles := filterToTestRoles(allRoles)
 
 		require.NoError(t, err, "error getting all roles")
@@ -324,7 +327,7 @@ func TestRbac(t *testing.T) {
 		require.True(t, compareRoles(testRole4, roles[3]),
 			"test role 4 is not equivalent to the retrieved role")
 
-		globalRoles, _, err := GetAllRoles(ctx, true, 0, 10)
+		globalRoles, _, err := GetAllRoles(ctx, true, 0, total)
 		roles = filterToTestRoles(globalRoles)
 		require.NoError(t, err, "error getting non-global roles")
 		require.Equal(t, 3, len(roles), "incorrect number of non-global roles retrieved")
