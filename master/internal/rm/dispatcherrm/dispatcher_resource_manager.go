@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/determined-ai/determined/master/internal/api/apiutils"
+	"github.com/determined-ai/determined/master/internal/rm"
 	"github.com/determined-ai/determined/master/internal/rm/rmevents"
 
 	"github.com/google/uuid"
@@ -129,7 +130,7 @@ func New(
 	cfg *config.ResourceManagerWithPoolsConfig,
 	opts *aproto.MasterSetAgentOptions,
 	cert *tls.Certificate,
-) *DispatcherResourceManager {
+) (*DispatcherResourceManager, error) {
 	var wlm wlmType
 	var rmCfg *config.DispatcherResourceManagerConfig
 	if cfg.ResourceManager.DispatcherRM != nil {
@@ -142,13 +143,12 @@ func New(
 
 	tlsConfig, err := model.MakeTLSConfig(cert)
 	if err != nil {
-		panic(errors.Wrap(err, "failed to set up TLS config"))
+		return nil, fmt.Errorf("failed to set up TLS config: %w", err)
 	}
 
 	apiClient, err := newLauncherAPIClient(rmCfg)
 	if err != nil {
-		// TODO(Brad): Don't panic like this...
-		panic(fmt.Errorf("building dispatcherrm: %w", err))
+		return nil, fmt.Errorf("building dispatcherrm: %w", err)
 	}
 
 	dispatchIDtoHPCJobID := mapx.New[string, string]()
@@ -157,7 +157,7 @@ func New(
 
 	dbState, err := getDispatcherState(context.TODO())
 	if err != nil {
-		panic(errors.Wrap(err, "failed to create state for dispatcher resource manager"))
+		return nil, fmt.Errorf("failed to create state for dispatcher resource manager: %w", err)
 	}
 	m := &DispatcherResourceManager{
 		syslog:    logrus.WithField("component", "dispatcherrm"),
@@ -201,7 +201,7 @@ func New(
 
 	go m.periodicallySchedulePendingTasks()
 
-	return m
+	return m, nil
 }
 
 // Allocate adds a task to the queue to be allocated.
@@ -287,42 +287,43 @@ func (m *DispatcherResourceManager) GetAllocationSummaries() (
 }
 
 // GetDefaultAuxResourcePool implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetDefaultAuxResourcePool() (string, error) {
+func (m *DispatcherResourceManager) GetDefaultAuxResourcePool() (rm.ResourcePoolName, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return "", err
 	}
-	return hpcDetails.DefaultAuxPoolPartition, nil
+	return rm.ResourcePoolName(hpcDetails.DefaultAuxPoolPartition), nil
 }
 
 // GetDefaultComputeResourcePool implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetDefaultComputeResourcePool() (string, error) {
+func (m *DispatcherResourceManager) GetDefaultComputeResourcePool() (rm.ResourcePoolName, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return "", err
 	}
-	return hpcDetails.DefaultComputePoolPartition, nil
+	return rm.ResourcePoolName(hpcDetails.DefaultComputePoolPartition), nil
 }
 
 // GetExternalJobs implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetExternalJobs(rpName string) ([]*jobv1.Job, error) {
-	return m.jobWatcher.fetchExternalJobs(rpName), nil
+func (m *DispatcherResourceManager) GetExternalJobs(rpName rm.ResourcePoolName) ([]*jobv1.Job, error) {
+	return m.jobWatcher.fetchExternalJobs(rpName.String()), nil
 }
 
 // GetJobQ implements rm.ResourceManager.
-func (m *DispatcherResourceManager) GetJobQ(rpName string) (
+func (m *DispatcherResourceManager) GetJobQ(rpName rm.ResourcePoolName) (
 	map[model.JobID]*sproto.RMJobInfo, error,
 ) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if len(strings.TrimSpace(rpName)) == 0 {
-		rpName = m.hpcDetailsCache.lastSample.Load().DefaultComputePoolPartition
+	if len(strings.TrimSpace(rpName.String())) == 0 {
+		rpName = rm.ResourcePoolName(m.hpcDetailsCache.lastSample.Load().
+			DefaultComputePoolPartition)
 		m.syslog.WithField("resource-pool", rpName).
 			Trace("no resource pool name provided, selected the default compute pool")
 	}
 	var reqs []*sproto.AllocateRequest
 	for it := m.reqList.Iterator(); it.Next(); {
-		if it.Value().ResourcePool == rpName {
+		if it.Value().ResourcePool == rpName.String() {
 			reqs = append(reqs, it.Value())
 		}
 	}
@@ -655,7 +656,9 @@ func (*DispatcherResourceManager) GetSlots(*apiv1.GetSlotsRequest) (*apiv1.GetSl
 // can't be resolved due to internal errors.
 // Note to developers: this function doesn't acquire a lock and, ideally, we won't make it, since
 // it is called a lot.
-func (m *DispatcherResourceManager) ResolveResourcePool(name string, workspace, slots int) (string, error) {
+func (m *DispatcherResourceManager) ResolveResourcePool(name rm.ResourcePoolName, workspace,
+	slots int,
+) (rm.ResourcePoolName, error) {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return "", err
@@ -670,17 +673,17 @@ func (m *DispatcherResourceManager) ResolveResourcePool(name string, workspace, 
 	// If the resource pool isn't set, fill in the default at creation time.
 	if name == "" && slots == 0 {
 		if defaultAuxPool == "" {
-			name = hpcDetails.DefaultAuxPoolPartition
+			name = rm.ResourcePoolName(hpcDetails.DefaultAuxPoolPartition)
 		} else {
-			name = defaultAuxPool
+			name = rm.ResourcePoolName(defaultAuxPool)
 		}
 	}
 
 	if name == "" && slots >= 0 {
 		if defaultComputePool == "" {
-			name = hpcDetails.DefaultComputePoolPartition
+			name = rm.ResourcePoolName(hpcDetails.DefaultComputePoolPartition)
 		} else {
-			name = defaultComputePool
+			name = rm.ResourcePoolName(defaultComputePool)
 		}
 	}
 
@@ -696,7 +699,7 @@ func (m *DispatcherResourceManager) ResolveResourcePool(name string, workspace, 
 	}
 	found := false
 	for _, poolName := range poolNames {
-		if name == poolName {
+		if name.String() == poolName {
 			found = true
 			break
 		}
@@ -707,7 +710,7 @@ func (m *DispatcherResourceManager) ResolveResourcePool(name string, workspace, 
 			name, workspace)
 	}
 
-	_, err = m.validateResourcePool(hpcDetails, name)
+	_, err = m.validateResourcePool(hpcDetails, name.String())
 	if err != nil {
 		return "", fmt.Errorf("validating resource pool: %w", err)
 	}
@@ -717,13 +720,13 @@ func (m *DispatcherResourceManager) ResolveResourcePool(name string, workspace, 
 // ValidateResourcePool validates that the given resource pool exists.
 // Note to developers: this function doesn't acquire a lock and, ideally, we won't make it, since
 // it is called a lot.
-func (m *DispatcherResourceManager) ValidateResourcePool(name string) error {
+func (m *DispatcherResourceManager) ValidateResourcePool(name rm.ResourcePoolName) error {
 	hpcDetails, err := m.hpcDetailsCache.load()
 	if err != nil {
 		return err
 	}
 
-	_, err = m.validateResourcePool(hpcDetails, name)
+	_, err = m.validateResourcePool(hpcDetails, name.String())
 	return err
 }
 
@@ -2159,12 +2162,12 @@ type taskContainerDefaults struct {
 // TaskContainerDefaults returns TaskContainerDefaults for the specified pool.
 // Note to developers: this function doesn't need to acquire a lock. Let's keep it that way.
 func (m *DispatcherResourceManager) TaskContainerDefaults(
-	resourcePoolName string,
+	resourcePoolName rm.ResourcePoolName,
 	defaultConfig model.TaskContainerDefaultsConfig,
 ) (model.TaskContainerDefaultsConfig, error) {
 	result := defaultConfig
 
-	partition := m.getProvidingPartition(resourcePoolName)
+	partition := m.getProvidingPartition(resourcePoolName.String())
 	partitionOverrides := m.rmConfig.ResolveTaskContainerDefaults(partition)
 	if partitionOverrides != nil {
 		tmp, err := result.Merge(*partitionOverrides)
@@ -2176,7 +2179,7 @@ func (m *DispatcherResourceManager) TaskContainerDefaults(
 
 	var poolConfigOverrides *model.TaskContainerDefaultsConfig
 	for _, pool := range m.poolConfig {
-		if resourcePoolName == pool.PoolName {
+		if resourcePoolName.String() == pool.PoolName {
 			if pool.TaskContainerDefaults == nil {
 				break
 			}

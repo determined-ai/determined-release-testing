@@ -10,6 +10,7 @@ import (
 
 	"github.com/determined-ai/determined/master/internal/config"
 	"github.com/determined-ai/determined/master/internal/config/provconfig"
+	"github.com/determined-ai/determined/master/internal/rm"
 	"github.com/determined-ai/determined/master/pkg/device"
 	"github.com/determined-ai/determined/master/pkg/model"
 	"github.com/determined-ai/determined/master/pkg/schemas/expconf"
@@ -808,7 +809,7 @@ func Test_dispatcherResourceManager_getTaskContainerDefaults(t *testing.T) {
 				poolConfig: tt.fields.poolConfig,
 			}
 			got, err := m.TaskContainerDefaults(
-				tt.args.msg.resourcePool,
+				rm.ResourcePoolName(tt.args.msg.resourcePool),
 				tt.args.msg.fallbackDefault,
 			)
 			if (err != nil) != tt.wantErr {
