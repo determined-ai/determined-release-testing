@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/hashicorp/go-cleanhttp"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -198,14 +199,14 @@ func (e *ExternalSessions) Validate(claims *JWT) error {
 }
 
 func (e *ExternalSessions) fetchInvalidations(cert *tls.Certificate) {
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				Certificates: []tls.Certificate{*cert},
-				MinVersion:   tls.VersionTLS12,
-			},
-		},
+	transport := cleanhttp.DefaultTransport()
+	transport.TLSClientConfig = &tls.Config{
+		Certificates: []tls.Certificate{*cert},
+		MinVersion:   tls.VersionTLS12,
 	}
+
+	client := cleanhttp.DefaultClient()
+	client.Transport = transport
 
 	req, err := http.NewRequest(http.MethodGet, e.InvalidationURI, nil)
 	if err != nil {

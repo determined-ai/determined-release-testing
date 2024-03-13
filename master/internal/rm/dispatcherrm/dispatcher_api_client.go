@@ -12,6 +12,7 @@ import (
 	"time"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/hashicorp/go-cleanhttp"
 	"github.com/sirupsen/logrus"
 	"github.hpe.com/hpe/hpc-ard-launcher-go/launcher"
 
@@ -51,13 +52,15 @@ func newLauncherAPIClient(cfg *config.DispatcherResourceManagerConfig) (*launche
 	lcfg.Host = fmt.Sprintf("%s:%d", cfg.LauncherHost, cfg.LauncherPort)
 	lcfg.Scheme = cfg.LauncherProtocol // "http" or "https"
 	if cfg.Security != nil {
-		lcfg.HTTPClient = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: cfg.Security.TLS.SkipVerify, //nolint:gosec
-				},
-			},
+		transport := cleanhttp.DefaultTransport()
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: cfg.Security.TLS.SkipVerify, //nolint:gosec
 		}
+
+		client := cleanhttp.DefaultClient()
+		client.Transport = transport
+
+		lcfg.HTTPClient = client
 	}
 
 	c := &launcherAPIClient{
