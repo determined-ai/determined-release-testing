@@ -2771,7 +2771,8 @@ jobs:
                   # Include 40 minute time limit, name the job (determined-agent-$HOSTNAME) so we can selectively kill it
                   sudo srun --uid launcher --export=ALL -N2 --gpus-per-node=4 --time=40 -Jdetermined-agent-$HOSTNAME \
                   --chdir=/scratch/launcher/.launcher.$HOSTNAME  /scratch/launcher/.launcher.$HOSTNAME/determined-agent \
-                  --master-host=$MASTER_HOST  --master-port=$MASTER_PORT --resource-pool=default --container-runtime=singularity  --slot-type=cuda
+                  --master-host=$MASTER_HOST  --master-port=$MASTER_PORT --resource-pool=default --container-runtime=singularity  --slot-type=cuda \
+                  --image-root=/lustre/hdd/foundation_engineering/images
                 background: true
             - run: 
                 name: Query the job to ensure Determined Agent is running
