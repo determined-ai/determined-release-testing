@@ -48,6 +48,7 @@ import (
 	"github.com/determined-ai/determined/master/internal/elastic"
 	"github.com/determined-ai/determined/master/internal/grpcutil"
 	"github.com/determined-ai/determined/master/internal/job/jobservice"
+	"github.com/determined-ai/determined/master/internal/license"
 	"github.com/determined-ai/determined/master/internal/logpattern"
 	"github.com/determined-ai/determined/master/internal/logretention"
 	"github.com/determined-ai/determined/master/internal/plugin/sso"
@@ -1075,6 +1076,7 @@ func buildRM(
 			return kubernetesrm.New(db, config, tcd, opts, cert)
 		case config.ResourceManager.DispatcherRM != nil,
 			config.ResourceManager.PbsRM != nil:
+			license.RequireLicense("dispatcher resource manager")
 			return dispatcherrm.New(db, echo, config, opts, cert)
 		default:
 			return nil, fmt.Errorf("no expected resource manager config is defined")

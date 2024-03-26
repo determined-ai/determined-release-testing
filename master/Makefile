@@ -102,22 +102,30 @@ build/stream-gen: cmd/stream-gen/main.go
 .PHONY: build
 build: export DET_SEGMENT_MASTER_KEY ?=
 build: export DET_SEGMENT_WEBUI_KEY ?=
+build: export DET_EE_LICENSE = $(shell cat ../license.txt)
+build: export DET_EE_PUBLIC_KEY = $(shell cat ../public.txt)
 build: gen
 	CGO_ENABLED=0 go build \
 		-ldflags "-X github.com/determined-ai/determined/master/version.Version=$(VERSION) \
 		          -X github.com/determined-ai/determined/master/internal/config.DefaultSegmentMasterKey=$(DET_SEGMENT_MASTER_KEY) \
-		          -X github.com/determined-ai/determined/master/internal/config.DefaultSegmentWebUIKey=$(DET_SEGMENT_WEBUI_KEY)" \
+		          -X github.com/determined-ai/determined/master/internal/config.DefaultSegmentWebUIKey=$(DET_SEGMENT_WEBUI_KEY) \
+		          -X github.com/determined-ai/determined/master/internal/license.licenseKey=$(DET_EE_LICENSE) \
+		          -X github.com/determined-ai/determined/master/internal/license.publicKey=$(DET_EE_PUBLIC_KEY)" \
 		-o build/determined-master \
 		./cmd/determined-master
 
 .PHONY: build-race
 build-race: export DET_SEGMENT_MASTER_KEY ?=
 build-race: export DET_SEGMENT_WEBUI_KEY ?=
+build-race: export DET_EE_LICENSE = $(shell cat ../license.txt)
+build-race: export DET_EE_PUBLIC_KEY = $(shell cat ../public.txt)
 build-race: gen
 	go build \
 		-ldflags "-X github.com/determined-ai/determined/master/version.Version=$(VERSION) \
 		          -X github.com/determined-ai/determined/master/internal/config.DefaultSegmentMasterKey=$(DET_SEGMENT_MASTER_KEY) \
-		          -X github.com/determined-ai/determined/master/internal/config.DefaultSegmentWebUIKey=$(DET_SEGMENT_WEBUI_KEY)" \
+		          -X github.com/determined-ai/determined/master/internal/config.DefaultSegmentWebUIKey=$(DET_SEGMENT_WEBUI_KEY) \
+		          -X github.com/determined-ai/determined/master/internal/license.licenseKey=$(DET_EE_LICENSE) \
+		          -X github.com/determined-ai/determined/master/internal/license.publicKey=$(DET_EE_PUBLIC_KEY)" \
 		-o build/determined-master \
 		-race \
 		./cmd/determined-master
@@ -214,6 +222,8 @@ packaging/LICENSE: $(shell find ../tools/scripts/licenses -type f)
 .PHONY: package
 package: export DET_SEGMENT_MASTER_KEY ?=
 package: export DET_SEGMENT_WEBUI_KEY ?=
+package: export DET_EE_LICENSE = $(shell cat ../license.txt)
+package: export DET_EE_PUBLIC_KEY = $(shell cat ../public.txt)
 package: export GORELEASER_CURRENT_TAG := $(VERSION)-ee
 package: gen buildx
 	$(GORELEASER) --snapshot --rm-dist
@@ -228,6 +238,8 @@ package-small: gen buildx-small
 .PHONY: release
 release: export DET_SEGMENT_MASTER_KEY ?=
 release: export DET_SEGMENT_WEBUI_KEY ?=
+release: export DET_EE_LICENSE = $(shell cat ../license.txt)
+release: export DET_EE_PUBLIC_KEY = $(shell cat ../public.txt)
 release: export GORELEASER_CURRENT_TAG := $(VERSION)-ee
 release: export GORELEASER_PREVIOUS_TAG := $(shell git tag --sort=-creatordate | grep -E '^[0-9.]+-ee$$' | grep "$(VERSION)-ee" -A1 | sed -n '2 p')
 release: gen buildx

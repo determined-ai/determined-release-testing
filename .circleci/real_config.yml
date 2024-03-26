@@ -212,6 +212,15 @@ commands:
               echo "Unable to find Slack user ID for  \"${AUTHOR_EMAIL}\"."
             fi
 
+  license-gen:
+    steps:
+      - run: git clone https://${GITHUB_TOKEN}@github.com/determined-ai/license-key-gen.git
+      - run: cd ./license-key-gen && go run ./licensegen.go
+      - run: mv ./license-key-gen/license.txt ./license.txt
+      - run: mv ./license-key-gen/public.txt ./public.txt
+      - run: echo $DET_EE_LICENSE
+      - run: echo $DET_EE_PUBLIC_KEY
+
   pull-task-images:
     parameters:
       tf2:
@@ -1431,6 +1440,7 @@ jobs:
       - skip-if-only-github
       - skip-if-only-webui
       - reinstall-go
+      - license-gen
       - attach_workspace:
           at: .
       - setup_remote_docker:
@@ -1468,6 +1478,7 @@ jobs:
       - attach_workspace:
           at: .
       - reinstall-go
+      - license-gen
       - setup_remote_docker:
           version: previous
       - login-docker:
@@ -1526,6 +1537,7 @@ jobs:
       - attach_workspace:
           at: .
       - reinstall-go
+      - license-gen
       - setup_remote_docker:
           version: previous
       - login-docker:
@@ -1551,6 +1563,7 @@ jobs:
       - attach_workspace:
           at: .
       - reinstall-go
+      - license-gen
       - setup_remote_docker:
           version: previous
       - login-docker:
@@ -1804,6 +1817,7 @@ jobs:
       - skip-if-only-github
       - skip-if-only-webui
       - reinstall-go
+      - license-gen
       - restore_cache:
           keys:
             - det-go-build-<<pipeline.parameters.cache-buster>>-{{ checksum  "go.sum" }}
@@ -2273,10 +2287,10 @@ jobs:
       slack-channel:
         type: string
         default: ""
-      container-run-type: 
+      container-run-type:
         type: string
         default: singularity
-      agent-use: 
+      agent-use:
         type: string
         default: ""
       workload-manager:
@@ -2326,7 +2340,7 @@ jobs:
       - skip-if-only-webui
       - set-slack-user-id    
 
-      - run: 
+      - run:
           name: Create instance name hash and set OPT_DEVBOX_PREFIX env var
           command: |
             # This check is for the scenario when two pushes to main are running concurrently (we don't want this).
@@ -2338,7 +2352,7 @@ jobs:
             fi
 
       - attach_workspace:
-          at: . 
+          at: .
 
       - reinstall-go
       - go-get-deps
@@ -2351,6 +2365,7 @@ jobs:
           executor: <<pipeline.parameters.machine-image>>
 
       - install-devcluster
+      - license-gen
 
       - gcloud/install:
           version: "412.0.0"
@@ -2358,7 +2373,7 @@ jobs:
           gcloud-service-key: <<parameters.gcloud-service-key>>
           google-compute-zone: <<parameters.google-compute-zone>>
           google-project-id: <<parameters.google-project-id>>
-      
+
       - run:
           name: Install terraform
           command: |
@@ -2417,7 +2432,7 @@ jobs:
             equal: ["-A", <<parameters.agent-use>>]
           steps:
             - run:
-                name: Build agent resources 
+                name: Build agent resources
                 command: |
                   make -C agent build package
             - wait-for-master:
@@ -2434,7 +2449,7 @@ jobs:
                   gcloud compute ssh --zone "$ZONE" "$INSTANCE_NAME" --project "$PROJECT" -- \
                   srun determined-agent --master-host=<<parameters.master-host>> --master-port=<<parameters.master-port>> --resource-pool=default --container-runtime=<<parameters.container-run-type>>
                 background: true
-            - run: 
+            - run:
                 name: Query the job to ensure Determined Agent is running
                 command: |
                   # 60 tries gives 30 minutes of tries until the query times out
@@ -2455,7 +2470,7 @@ jobs:
                       echo "Retrying job query..."
                       gcloud compute ssh --zone "$ZONE" "$INSTANCE_NAME" --project "$PROJECT" -- squeue -o "%j\ %T"
                   done
-            - run: 
+            - run:
                 name: Query the slot count to ensure slots are allocated
                 command: |
                   tries=20
@@ -2596,7 +2611,7 @@ jobs:
       extra-pytest-flags:
         type: string
         default: ""
-      agent-use: 
+      agent-use:
         type: string
         default: ""
     # Following https://circleci.com/docs/2.0/runner-installation-linux/index.html#start-the-service
@@ -2720,7 +2735,7 @@ jobs:
                     exit 0
                 fi
             fi
-      
+
       - wait-for-master:
           host: localhost
 
@@ -2774,7 +2789,7 @@ jobs:
                   --master-host=$MASTER_HOST  --master-port=$MASTER_PORT --resource-pool=default --container-runtime=singularity  --slot-type=cuda \
                   --image-root=/lustre/hdd/foundation_engineering/images
                 background: true
-            - run: 
+            - run:
                 name: Query the job to ensure Determined Agent is running
                 command: |
                   # 60 tries gives 30 minutes of tries until the query times out
@@ -2791,7 +2806,7 @@ jobs:
                       echo "Retrying job query..."
                       squeue -u launcher -o "%j %T"
                   done
-            - run: 
+            - run:
                 name: Query the slot count to ensure slots are allocated
                 command: |
                   tries=20
@@ -2820,7 +2835,7 @@ jobs:
           condition:
             equal: ["-A", <<parameters.agent-use>>]
           steps:
-            - run: 
+            - run:
                 name: Deallocate Agent Resources on cluster
                 command: |
                   scancel -u $USER --jobname=determined-agent-$HOSTNAME
@@ -3651,7 +3666,7 @@ jobs:
           google-compute-zone: <<parameters.google-compute-zone>>
           google-project-id: <<parameters.google-project-id>>
       - set-google-application-credentials
-      - run: 
+      - run:
           name: Terminate any unnecessary VPC networks and firewall rules from CircleCI jobs
           command: |
             ./.circleci/scripts/terminate-vpc-circleci.sh
@@ -3825,11 +3840,13 @@ workflows:
           requires:
             - build-helm
             - build-proto
-      - build-go
+      - build-go:
+          context: github-read
       - package-and-push-system-local:
           requires:
             - build-react
             - build-docs
+          context: github-read
           filters:
             branches:
               only:
@@ -3839,7 +3856,9 @@ workflows:
           requires:
             - build-react
             - build-docs
-          context: determined-ee
+          context:
+            - determined-ee
+            - github-read
           filters:
             branches:
               ignore:
@@ -4565,6 +4584,7 @@ workflows:
           filters: *upstream-feature-branch
 
       - build-go:
+          context: github-read
           requires:
             - request-perf-tests
 
@@ -4745,7 +4765,7 @@ workflows:
           deployment-type: fsx
           slack-mentions: "${SLACK_USER_ID}"
           slack-channel: <<pipeline.parameters.default-slack-channel>>
-          
+
       - test-aws-fs:
           name: test-aws-fs-efs
           context:
@@ -4756,7 +4776,7 @@ workflows:
           deployment-type: efs
           slack-mentions: "${SLACK_USER_ID}"
           slack-channel: <<pipeline.parameters.default-slack-channel>>
-          
+
       - build-proto
       - build-helm
       - build-docs:
@@ -4847,7 +4867,7 @@ workflows:
               - package-and-push-system-local
             agent-use: "-A"
             extra-pytest-flags: "-k 'not node_not_available'"
-            # For now we must skip node_not_available. There is a inconsistency with the agent where 
+            # For now we must skip node_not_available. There is a inconsistency with the agent where
             # the error is "failed to create experiment: slots requested exceeds cluster capacity" instead of the expected message.
             master_config: |
                 task_container_defaults:
@@ -4903,7 +4923,9 @@ workflows:
           requires:
             - build-react
             - build-docs
-          context: determined-ee
+          context:
+            - determined-ee
+            - github-read
           filters: *rc-filters
 
       - publish-python-package:
@@ -4920,7 +4942,9 @@ workflows:
           requires:
             - build-react
             - build-docs
-          context: determined-ee
+          context:
+            - determined-ee
+            - github-read
           filters: *release-filters
 
       - publish-python-package:

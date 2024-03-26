@@ -3,6 +3,8 @@ package sso
 import (
 	"net/url"
 
+	"github.com/determined-ai/determined/master/internal/license"
+
 	"github.com/labstack/echo/v4"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -102,36 +104,39 @@ func RegisterAPIHandlers(config *config.Config, db *db.PgDB, echo *echo.Echo) er
 
 	var oauthService *oauth.Service
 	if config.Scim.Auth.OAuthConfig != nil {
-		log.Infof("OAuth is enabled at %s%s", masterURL, oauth.Root)
+		license.RequireLicense("Oauth")
 		oauthService, err = oauth.New(user.GetService(), db)
 		if err != nil {
 			return err
 		}
 		oauth.RegisterAPIHandler(echo, oauthService)
+		log.Infof("OAuth is enabled at %s%s", masterURL, oauth.Root)
 	} else {
 		log.Info("OAuth is disabled")
 	}
 
 	if config.Scim.Enabled {
-		log.Infof("SCIM is enabled at %v/scim/v2", masterURL)
+		license.RequireLicense("SCIM")
 		scim.RegisterAPIHandler(echo, db, &config.Scim, masterURL, oauthService)
+		log.Infof("SCIM is enabled at %v/scim/v2", masterURL)
 	} else {
 		log.Info("SCIM is disabled")
 	}
 
 	if config.SAML.Enabled {
-		log.Info("SAML is enabled")
+		license.RequireLicense("SAML")
 		samlService, err := saml.New(db, config.SAML)
 		if err != nil {
 			return errors.Wrap(err, "error creating SAML service")
 		}
 		saml.RegisterAPIHandler(echo, samlService)
+		log.Info("SAML is enabled")
 	} else {
 		log.Info("SAML is disabled")
 	}
 
 	if config.OIDC.Enabled {
-		log.Info("OIDC is enabled")
+		license.RequireLicense("OIDC")
 		var pachEnabled bool
 		if config.Integrations.Pachyderm.Address != "" {
 			pachEnabled = true
@@ -143,11 +148,13 @@ func RegisterAPIHandlers(config *config.Config, db *db.PgDB, echo *echo.Echo) er
 			return errors.Wrap(err, "error creating OIDC service")
 		}
 		oidc.RegisterAPIHandler(echo, oidcService)
+		log.Info("OIDC is enabled")
 	} else {
 		log.Info("OIDC is disabled")
 	}
 
 	if config.DetCloud.Enabled {
+		license.RequireLicense("DetCloud")
 		log.Info("Det Cloud is enabled")
 	} else {
 		log.Info("Det Cloud is disabled")
