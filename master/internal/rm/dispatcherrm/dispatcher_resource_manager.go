@@ -973,6 +973,7 @@ func (m *DispatcherResourceManager) hpcNodeToAgent(node hpcNodeDetails) *agentv1
 				agent, slotType, node, i, i < node.GpuInUseCount) // [1:N] CUDA slots
 		}
 	}
+	agent.SlotStats = model.SummarizeSlots(agent.Slots)
 	return agent
 }
 
