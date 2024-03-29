@@ -260,6 +260,22 @@ func (m *DispatcherResourceManager) ExternalPreemptionPending(msg sproto.Pending
 	return nil
 }
 
+// HealthCheck tries to call launcher and check if it is reachable.
+func (m *DispatcherResourceManager) HealthCheck() []model.ResourceManagerHealth {
+	status := model.Healthy
+	_, err := m.apiClient.getVersion(context.TODO(), m.syslog.WithField("caller", "HealthCheck"))
+	if err != nil {
+		status = model.Unhealthy
+	}
+
+	return []model.ResourceManagerHealth{
+		{
+			Name:   m.rmConfig.Name,
+			Status: status,
+		},
+	}
+}
+
 // GetAgents implements rm.ResourceManager.
 // Note to developers: this function must not acquire locks, since it is polled to saturate
 // the UI.

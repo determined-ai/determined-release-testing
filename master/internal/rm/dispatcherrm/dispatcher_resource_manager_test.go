@@ -6,6 +6,7 @@ import (
 
 	"gotest.tools/assert"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/determined-ai/determined/master/internal/config"
@@ -205,6 +206,26 @@ func Test_generateGetAgentsResponse(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestHealthCheck(t *testing.T) {
+	m := &DispatcherResourceManager{
+		syslog: logrus.WithField("component", "dispatcherrm"),
+		rmConfig: &config.DispatcherResourceManagerConfig{
+			Name: "testname",
+		},
+	}
+
+	c, err := newLauncherAPIClient(m.rmConfig)
+	require.NoError(t, err)
+	m.apiClient = c
+
+	require.Equal(t, []model.ResourceManagerHealth{
+		{
+			Name:   "testname",
+			Status: model.Unhealthy, // Unhealthy since launcher API client isn't set up properly.
+		},
+	}, m.HealthCheck())
 }
 
 func Test_summarizeResourcePool(t *testing.T) {
