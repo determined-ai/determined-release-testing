@@ -4788,6 +4788,7 @@ workflows:
           requires:
             - build-docs
             - build-react
+          context: github-read
       - test-e2e-slurm:
           name: test-e2e-slurm-restart
           mark: "e2e_slurm_restart"
