@@ -146,7 +146,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.6.1 // indirect
 	go.opentelemetry.io/otel/trace v1.6.1 // indirect
 	go.opentelemetry.io/proto/otlp v0.12.1 // indirect
-	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
+	golang.org/x/oauth2 v0.13.0
 	golang.org/x/sys v0.18.0
 	golang.org/x/term v0.17.0 // indirect
 	golang.org/x/text v0.14.0
@@ -170,7 +170,7 @@ require (
 	cloud.google.com/go/storage v1.10.0
 	github.com/docker/distribution v2.8.2+incompatible
 	github.com/docker/docker-credential-helpers v0.6.4
-	github.com/fatih/color v1.15.0 // indirect
+	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-co-op/gocron/v2 v2.1.1
 	github.com/go-test/deep v1.1.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
