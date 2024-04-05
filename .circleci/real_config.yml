@@ -214,12 +214,10 @@ commands:
 
   license-gen:
     steps:
-      - run: git clone https://${GITHUB_TOKEN}@github.com/determined-ai/license-key-gen.git
-      - run: cd ./license-key-gen && go run ./licensegen.go
-      - run: mv ./license-key-gen/license.txt ./license.txt
-      - run: mv ./license-key-gen/public.txt ./public.txt
-      - run: echo $DET_EE_LICENSE
-      - run: echo $DET_EE_PUBLIC_KEY
+      - run: cd .. && git clone https://${GITHUB_TOKEN}@github.com/determined-ai/license-key-gen.git
+      - run: cd ../license-key-gen && go run ./licensegen.go
+      - run: mv ../license-key-gen/license.txt ./license.txt
+      - run: mv ../license-key-gen/public.txt ./public.txt
 
   pull-task-images:
     parameters:
