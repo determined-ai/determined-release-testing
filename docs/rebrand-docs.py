@@ -20,15 +20,19 @@ def sub_multi(repls, t):
 
 
 def rewrite_text(t):
-    c = "HPE Machine Learning Development Environment"
+    d = "HPE Machine Learning Development Environment"
+    p = "HPE Machine Learning Data Management"
     return sub_multi(
         [
             (r"Determined\s+AI", "HPE"),
-            (r"A\s+Determined", f"An {c}"),
-            (r"a\s+Determined", f"an {c}"),
-            (r"Determined EE", c),
-            (r"Determined", c),
+            (r"A\s+Determined", f"An {d}"),
+            (r"a\s+Determined", f"an {d}"),
+            (r"Determined EE", d),
+            (r"Determined", d),
             (r"\(EE-only\) ", ""),
+            (r"A Pachyderm", f"An {p}"),
+            (r"a Pachyderm", f"an {p}"),
+            (r"Pachyderm", p),
         ],
         t,
     )
