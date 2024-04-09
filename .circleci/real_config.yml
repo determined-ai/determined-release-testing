@@ -4952,7 +4952,6 @@ workflows:
             - build-docs
           context:
             - determined-ee
-            - github-read
           filters: *release-filters
 
       - publish-python-package:
