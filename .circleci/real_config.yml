@@ -4167,6 +4167,15 @@ workflows:
           wait-for-master: false
           extra-pytest-flags: "--no-compare-stats"
 
+      - test-e2e:
+          context: okta
+          name: test-e2e-saml
+          requires:
+            - build-go
+          parallelism: 1
+          devcluster-config: saml.devcluster.yaml
+          mark: e2e_saml
+
       - test-perf:
           name: test-perf
           snapshot-after-migrations: true

@@ -2,12 +2,18 @@ package saml
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
+	"encoding/base64"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
 
-	"github.com/RobotsAndPencils/go-saml"
+	saml "github.com/crewjam/saml"
+	samlsp "github.com/crewjam/saml/samlsp"
 	"github.com/labstack/echo/v4"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -16,6 +22,7 @@ import (
 
 	"github.com/determined-ai/determined/master/internal/config"
 	"github.com/determined-ai/determined/master/internal/db"
+	"github.com/determined-ai/determined/master/internal/proxy"
 	"github.com/determined-ai/determined/master/internal/user"
 	"github.com/determined-ai/determined/master/internal/usergroup"
 	"github.com/determined-ai/determined/master/pkg/model"
@@ -31,9 +38,9 @@ const (
 
 // Service is a SAML service capable of sending SAML requests and consuming responses.
 type Service struct {
-	db         *db.PgDB
-	samlConfig saml.ServiceProviderSettings
-	userConfig userConfig
+	db           *db.PgDB
+	samlProvider *samlsp.Middleware
+	userConfig   userConfig
 }
 
 // userConfig represents the user defined configurations for SAML integration.
@@ -46,45 +53,72 @@ type userConfig struct {
 // New constructs a new SAML service that is capable of sending SAML requests and consuming
 // responses.
 func New(db *db.PgDB, c config.SAMLConfig) (*Service, error) {
-	sp := saml.ServiceProviderSettings{
-		IDPSSOURL:                   c.IDPSSOURL,
-		IDPSSODescriptorURL:         c.IDPSSODescriptorURL,
-		IDPPublicCertPath:           c.IDPCertPath,
-		AssertionConsumerServiceURL: c.IDPRecipientURL,
-	}
-	err := sp.Init()
-	if err != nil {
-		return nil, errors.Wrap(err, "error creating SAML service")
-	}
-
 	uc := userConfig{
 		autoProvisionUsers:       c.AutoProvisionUsers,
 		groupsAttributeName:      c.GroupsAttributeName,
 		displayNameAttributeName: c.DisplayNameAttributeName,
 	}
 
+	key, cert, err := proxy.GenSignedCert()
+	if err != nil {
+		return nil, err
+	}
+	keyPair, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		return nil, err
+	}
+	keyPair.Leaf, err = x509.ParseCertificate(keyPair.Certificate[0])
+	if err != nil {
+		return nil, err
+	}
+
+	idpMetadataURL, err := url.Parse(c.IDPMetadataURL)
+	if err != nil {
+		return nil, err
+	}
+	idpMetadata, err := samlsp.FetchMetadata(context.Background(), http.DefaultClient,
+		*idpMetadataURL)
+	if err != nil {
+		return nil, err
+	}
+
+	recipientURL, err := url.Parse(c.IDPRecipientURL)
+	if err != nil {
+		return nil, err
+	}
+
+	rootURL, err := url.Parse(recipientURL.Scheme + "://" + recipientURL.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	middleWare, _ := samlsp.New(samlsp.Options{
+		EntityID:    rootURL.String(),
+		URL:         *rootURL,
+		Key:         keyPair.PrivateKey.(*rsa.PrivateKey),
+		Certificate: keyPair.Leaf,
+		IDPMetadata: idpMetadata,
+		SignRequest: true,
+	})
+
+	middleWare.ServiceProvider.AcsURL.Path = recipientURL.Path
+
 	return &Service{
-		db:         db,
-		samlConfig: sp,
-		userConfig: uc,
+		db:           db,
+		samlProvider: middleWare,
+		userConfig:   uc,
 	}, nil
 }
 
 // MakeRedirectBinding makes a SAML redirect binding as described at
 // https://en.wikipedia.org/wiki/SAML_2.0#HTTP_Redirect_Binding.
 func (s *Service) MakeRedirectBinding(relayState string) (string, error) {
-	authnRequest := s.samlConfig.GetAuthnRequest()
-	b64XML, err := authnRequest.EncodedString()
+	authenticationRequest, err := s.samlProvider.ServiceProvider.MakeRedirectAuthenticationRequest(relayState)
 	if err != nil {
-		return "", errors.Wrap(err, "error encoding redirect binding")
+		return "", err
 	}
 
-	url, err := saml.GetAuthnRequestURL(s.samlConfig.IDPSSOURL, b64XML, relayState)
-	if err != nil {
-		return "", errors.Wrap(err, "error generating redirect request")
-	}
-
-	return url, nil
+	return authenticationRequest.String(), nil
 }
 
 func (s *Service) redirectWithSAMLRequest(c echo.Context) error {
@@ -101,18 +135,21 @@ func (s *Service) consumeAssertion(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "SAMLResponse form value missing")
 	}
 
-	response, err := saml.ParseEncodedResponse(encodedXML)
+	response := saml.Response{}
+	bytesXML, err := base64.StdEncoding.DecodeString(encodedXML)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "error parsing SAMLResponse")
+		return err
+	}
+	err = xml.Unmarshal(bytesXML, &response)
+	if err != nil {
+		return err
+	}
+	xmlResponse, err := s.samlProvider.ServiceProvider.ParseXMLResponse(bytesXML, []string{response.InResponseTo})
+	if err != nil {
+		return err
 	}
 
-	err = response.Validate(&s.samlConfig)
-	if err != nil {
-		logrus.Error(err)
-		return echo.NewHTTPError(http.StatusBadRequest, "error validating SAMLResponse")
-	}
-
-	userAttr := s.toUserAttributes(response)
+	userAttr := s.toUserAttributes(xmlResponse)
 	if userAttr == nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "SAML attribute identifier userName missing")
 	}
@@ -176,17 +213,44 @@ type userAttributes struct {
 	groups      []string
 }
 
-func (s *Service) toUserAttributes(response *saml.Response) *userAttributes {
-	uName := response.GetAttribute("userName")
+func (s *Service) toUserAttributes(response *saml.Assertion) *userAttributes {
+	uName := getSAMLAttribute(response, "userName")
 	if uName == "" {
 		return nil
 	}
 
 	return &userAttributes{
 		userName:    uName,
-		displayName: response.GetAttribute(s.userConfig.displayNameAttributeName),
-		groups:      response.GetAttributeValues(s.userConfig.groupsAttributeName),
+		displayName: getSAMLAttribute(response, s.userConfig.displayNameAttributeName),
+		groups:      getAttributeValues(response, s.userConfig.groupsAttributeName),
 	}
+}
+
+// getSAMLAttribute is similar to a function provided by the previously used saml library.
+func getSAMLAttribute(r *saml.Assertion, name string) string {
+	for _, statement := range r.AttributeStatements {
+		for _, attr := range statement.Attributes {
+			if attr.Name == name || attr.FriendlyName == name {
+				return attr.Values[0].Value
+			}
+		}
+	}
+	return ""
+}
+
+// getAttributeValues is similar to a function provided by the previously used saml library.
+func getAttributeValues(r *saml.Assertion, name string) []string {
+	var values []string
+	for _, statement := range r.AttributeStatements {
+		for _, attr := range statement.Attributes {
+			if attr.Name == name || attr.FriendlyName == name {
+				for _, v := range attr.Values {
+					values = append(values, v.Value)
+				}
+			}
+		}
+	}
+	return values
 }
 
 // syncUser syncs the mutable user fields parsed from the claim, only if there are non-null changes.

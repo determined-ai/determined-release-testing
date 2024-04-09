@@ -63,8 +63,8 @@ require (
 )
 
 require (
-	github.com/RobotsAndPencils/go-saml v0.0.0-20230606195814-29020529affc
 	github.com/coreos/go-oidc/v3 v3.9.0
+	github.com/crewjam/saml v0.4.14
 	github.hpe.com/hpe/hpc-ard-launcher-go/launcher v0.0.0-00010101000000-000000000000
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.29.0
 	go.opentelemetry.io/otel v1.6.1
@@ -190,27 +190,25 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
+	github.com/beevik/etree v1.3.0 // indirect
+	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
+	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
-	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
-	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	github.com/russellhaering/goxmldsig v1.4.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/mod v0.14.0 // indirect
 )
 
-require (
-	github.com/kr/pretty v0.3.0 // indirect
-	golang.org/x/sync v0.5.0
-)
+require golang.org/x/sync v0.5.0
 
 // Determined AI's CircleCI doesn't have access to "github.hpe.com/hpe/hpc-ard-launcher-go",
 // so the build will fail in CircleCI.  Therefore, we had to do a "git clone" of the

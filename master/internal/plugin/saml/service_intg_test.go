@@ -5,24 +5,24 @@ package saml
 
 import (
 	"context"
-	"encoding/base64"
+	"encoding/xml"
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"github.com/google/uuid"
 
-	"github.com/determined-ai/determined/master/internal/config"
 	"github.com/determined-ai/determined/master/internal/db"
 	"github.com/determined-ai/determined/master/internal/user"
 
 	"github.com/determined-ai/determined/master/pkg/etc"
 	"github.com/determined-ai/determined/master/pkg/model"
 
-	"github.com/RobotsAndPencils/go-saml"
+	"github.com/crewjam/saml"
 )
 
 func TestMain(m *testing.M) {
@@ -45,14 +45,14 @@ func TestMain(m *testing.M) {
 
 func TestSAMLWorkflowAutoProvision(t *testing.T) {
 	// First, make sure the mock SAML service is created.
-	s := mockService(t, true)
+	s := mockService(true)
 	require.NotNil(t, s)
 
 	ctx := context.Background()
 
 	username := uuid.NewString()
-	encodedXML := getUserXML(username, username+"123", []string{"abc", "bcd"})
-	u := processXMLUnprovisioned(ctx, t, encodedXML, username, username+"123", s)
+	resp := getUserResponse(username, username+"123", []string{"abc", "bcd"})
+	u := processResponseUnprovisioned(ctx, t, resp.Assertion, username, username+"123", s)
 
 	require.True(t, u.Remote)
 
@@ -66,8 +66,8 @@ func TestSAMLWorkflowAutoProvision(t *testing.T) {
 	require.NoError(t, err)
 
 	// test Update User fields based on SAML response
-	encodedXML = getUserXML(username, username+"456", []string{"abc"})
-	u = processXMLProvisioned(ctx, t, encodedXML, username, username+"456", s)
+	resp = getUserResponse(username, username+"456", []string{"abc"})
+	u = processResponseProvisioned(ctx, t, resp.Assertion, username, username+"456", s)
 
 	require.True(t, u.Remote)
 
@@ -83,28 +83,25 @@ func TestSAMLWorkflowAutoProvision(t *testing.T) {
 
 func TestSAMLWorkflowUserNotProvisioned(t *testing.T) {
 	// First, make sure the mock SAML service is created.
-	s := mockService(t, false)
+	s := mockService(false)
 	require.NotNil(t, s)
 
 	ctx := context.Background()
 
 	username := uuid.NewString()
-	encodedXML := getUserXML(username, username+"123", []string{"abc", "bcd"})
+	resp := getUserResponse(username, username+"123", []string{"abc", "bcd"})
 
-	response, err := saml.ParseEncodedResponse(encodedXML)
-	require.NoError(t, err)
-
-	userAttr := s.toUserAttributes(response)
+	userAttr := s.toUserAttributes(resp.Assertion)
 	require.Equal(t, username, userAttr.userName)
 
-	_, err = user.ByUsername(ctx, userAttr.userName)
+	_, err := user.ByUsername(ctx, userAttr.userName)
 	log.Print(err)
 	require.ErrorContains(t, err, "not found")
 }
 
 func TestSAMLWorkflowUserProvisioned(t *testing.T) {
 	// First, make sure the mock SAML service is created.
-	s := mockService(t, true)
+	s := mockService(true)
 	require.NotNil(t, s)
 
 	ctx := context.Background()
@@ -118,8 +115,8 @@ func TestSAMLWorkflowUserProvisioned(t *testing.T) {
 	_, err := user.Add(ctx, initialUser, nil)
 	require.NoError(t, err)
 
-	encodedXML := getUserXML(username, username+"123", []string{"abc", "bcd"})
-	u := processXMLProvisioned(ctx, t, encodedXML, username, username+"123", s)
+	resp := getUserResponse(username, username+"123", []string{"abc", "bcd"})
+	u := processResponseProvisioned(ctx, t, resp.Assertion, username, username+"123", s)
 
 	require.False(t, u.Remote)
 
@@ -133,51 +130,61 @@ func TestSAMLWorkflowUserProvisioned(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func mockService(t *testing.T, autoProvision bool) *Service {
-	samlConfig := config.SAMLConfig{
-		Enabled:                  true,
-		Provider:                 "Okta",
-		IDPRecipientURL:          "http://127.0.0.1:8081/saml/sso",
-		IDPSSOURL:                "https://test-okta/sso/saml",
-		IDPSSODescriptorURL:      "http://www.okta.com/test",
-		IDPCertPath:              "okta_cert.cert",
-		AutoProvisionUsers:       autoProvision,
-		GroupsAttributeName:      "groups",
-		DisplayNameAttributeName: "disp_name",
-	}
-	service, err := New(db.SingleDB(), samlConfig)
-	if err != nil {
-		log.Panicln(err)
+func mockService(autoProvision bool) *Service {
+	service := &Service{
+		db:           db.SingleDB(),
+		samlProvider: nil,
+		userConfig: userConfig{
+			autoProvisionUsers:       autoProvision,
+			groupsAttributeName:      "groups",
+			displayNameAttributeName: "disp_name",
+		},
 	}
 	return service
 }
 
-func getUserXML(username string, dispName string, groups []string) string {
-	resp := saml.NewSignedResponse()
-	resp.AddAttribute("userName", username)
-	resp.AddAttribute("disp_name", dispName)
+func getUserResponse(username string, dispName string, groups []string) saml.Response {
+	resp := saml.Response{
+		XMLName:      xml.Name{},
+		IssueInstant: time.Time{},
+		Status:       saml.Status{},
+		Assertion:    &saml.Assertion{},
+	}
+	addAttribute(resp, "userName", username)
+	addAttribute(resp, "disp_name", dispName)
 
 	for _, g := range groups {
-		resp.AddAttribute("groups", g)
+		addAttribute(resp, "groups", g)
 	}
 
-	samlStr, err := resp.String()
-	if err != nil {
-		log.Panicln(err)
-	}
-	return base64.StdEncoding.EncodeToString([]byte(samlStr))
+	return resp
 }
 
-func processXMLUnprovisioned(ctx context.Context, t *testing.T,
-	encodedXML string, username string, dispName string, s *Service,
-) *model.User {
-	response, err := saml.ParseEncodedResponse(encodedXML)
-	require.NoError(t, err)
+func addAttribute(response saml.Response, name, value string) {
+	if len(response.Assertion.AttributeStatements) == 0 {
+		response.Assertion.AttributeStatements = append(response.Assertion.AttributeStatements, saml.AttributeStatement{})
+	}
+	response.Assertion.AttributeStatements[0].Attributes = append(response.Assertion.AttributeStatements[0].Attributes,
+		saml.Attribute{
+			FriendlyName: "",
+			Name:         name,
+			NameFormat:   "",
+			Values: []saml.AttributeValue{
+				{
+					Type:  "xs:string",
+					Value: value,
+				},
+			},
+		})
+}
 
+func processResponseUnprovisioned(ctx context.Context, t *testing.T,
+	response *saml.Assertion, username string, dispName string, s *Service,
+) *model.User {
 	userAttr := s.toUserAttributes(response)
 	require.Equal(t, username, userAttr.userName)
 
-	_, err = user.ByUsername(ctx, userAttr.userName)
+	_, err := user.ByUsername(ctx, userAttr.userName)
 	log.Print(err)
 	require.True(t, errors.Is(err, db.ErrNotFound), true)
 	u, err := s.provisionUser(ctx, userAttr.userName, userAttr.groups)
@@ -194,12 +201,9 @@ func processXMLUnprovisioned(ctx context.Context, t *testing.T,
 	return u
 }
 
-func processXMLProvisioned(ctx context.Context, t *testing.T,
-	encodedXML string, username string, dispName string, s *Service,
+func processResponseProvisioned(ctx context.Context, t *testing.T,
+	response *saml.Assertion, username string, dispName string, s *Service,
 ) *model.User {
-	response, err := saml.ParseEncodedResponse(encodedXML)
-	require.NoError(t, err)
-
 	userAttr := s.toUserAttributes(response)
 	require.Equal(t, username, userAttr.userName)
 
