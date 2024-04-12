@@ -22,6 +22,8 @@ MULTI_ARCH_IMAGES = $(shell for arch in $(ARCHS); do echo $(DOCKER_REPO)/$(PROJE
 EE_MULTI_ARCH_IMAGES = $(shell for arch in $(ARCHS); do echo $(DOCKER_REPO)/$(EE_PROJECT_NAME):$(FULL_COMMIT)-$$arch; done)
 SHARED_CLUSTER_IMAGE=$(shell echo $(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT)-$(ARCH_SMALL))
 
+NVCR_REPO ?= nvcr.io/isv-ngc-partner/determined
+
 PUB_MANIFESTS = \
 	$(DOCKER_REPO)/$(PROJECT_NAME):$(FULL_COMMIT) \
 	$(DOCKER_REPO)/$(PROJECT_NAME):$(SHORT_COMMIT) \
@@ -242,9 +244,7 @@ packaging/LICENSE: $(shell find ../tools/scripts/licenses -type f)
 .PHONY: package
 package: export DET_SEGMENT_MASTER_KEY ?=
 package: export DET_SEGMENT_WEBUI_KEY ?=
-package: export DET_EE_LICENSE = $(shell cat ../license.txt)
-package: export DET_EE_PUBLIC_KEY = $(shell cat ../public.txt)
-package: export GORELEASER_CURRENT_TAG := $(VERSION)-ee
+package: export GORELEASER_CURRENT_TAG := $(VERSION)
 package: gen buildx
 	$(GORELEASER) --snapshot --rm-dist 
 
@@ -267,12 +267,11 @@ package-small: gen buildx-small
 .PHONY: release
 release: export DET_SEGMENT_MASTER_KEY ?=
 release: export DET_SEGMENT_WEBUI_KEY ?=
-release: export DET_EE_LICENSE = $(shell cat ../license.txt)
-release: export DET_EE_PUBLIC_KEY = $(shell cat ../public.txt)
-release: export GORELEASER_CURRENT_TAG := $(VERSION)-ee
-release: export GORELEASER_PREVIOUS_TAG := $(shell git tag --sort=-creatordate | grep -E '^[0-9.]+-ee$$' | grep "$(VERSION)-ee" -A1 | sed -n '2 p')
+release: export GORELEASER_CURRENT_TAG := $(VERSION)
+release: export GORELEASER_PREVIOUS_TAG := $(shell git tag --sort=-creatordate | grep -E '^[0-9.]+$$' | grep "$(VERSION)" -A1 | sed -n '2 p')
 release: gen buildx
 	$(GORELEASER) --rm-dist
+	make publish-nvcr
 
 .PHONY: release-ee
 release-ee: export DET_SEGMENT_MASTER_KEY ?=

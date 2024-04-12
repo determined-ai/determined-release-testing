@@ -1660,10 +1660,10 @@ jobs:
           password: ${NGC_API_KEY}
       - pre-package-and-push-system
       - make-package
-      - run: make -C master publish
-      - run: make -C agent publish
-      - run: make -C model_hub build-docker
-      - run: tools/scripts/retry.sh make -C model_hub publish-docker
+      # - run: make -C master publish
+      # - run: make -C agent publish
+      # - run: make -C model_hub build-docker
+      # - run: tools/scripts/retry.sh make -C model_hub publish-docker
       - run: mkdir /tmp/pkgs && cp -v */dist/*.{rpm,deb,tar.gz} /tmp/pkgs
       - store_artifacts:
           path: /tmp/pkgs
@@ -1686,9 +1686,9 @@ jobs:
           username: ${DOCKER_USER}
           password: ${DOCKER_PASS}
       - pre-package-and-push-system
-      - make-package
-      - run: make -C master publish-ee
-      - run: make -C agent publish-ee
+      - make-package-ee
+      # - run: make -C master publish-ee
+      # - run: make -C agent publish-ee
       - run: mkdir /tmp/pkgs && cp -v */dist/*.{rpm,deb,tar.gz} /tmp/pkgs
       - store_artifacts:
           path: /tmp/pkgs
@@ -1783,10 +1783,16 @@ jobs:
       - run: make -C helm release-gh
       - run: |
           if <<parameters.ee>>; then
-            make -C helm release-gh-ee
+            echo "running EE!"
           else
-            make -C helm release-gh
+            echo "running OSS!"
           fi
+      # - run: |
+      #     if <<parameters.ee>>; then
+      #       make -C helm release-gh-ee
+      #     else
+      #       make -C helm release-gh
+      #     fi
 
   # publish-helm-gh-ee:
   #   docker:
@@ -1816,13 +1822,18 @@ jobs:
           extras-requires: "build twine"
           executor: <<pipeline.parameters.docker-image>>
       - run: make -C <<parameters.path>> build
-      # - run: make -C <<parameters.path>> publish
       - run: |
           if <<parameters.ee>>; then
-            make -C <<parameters.path>> publish-ee
+            echo "running EE!"
           else
-            make -C <<parameters.path>> publish
+            echo "running OSS!"
           fi
+      # - run: |
+      #     if <<parameters.ee>>; then
+      #       make -C <<parameters.path>> publish-ee
+      #     else
+      #       make -C <<parameters.path>> publish
+      #     fi
 
   # publish-python-package-ee:
   #   parameters:
@@ -5287,7 +5298,7 @@ workflows:
   #           - build-helm
   #           - build-proto
 
-  release:
+  release-oss:
     jobs:
       - build-helm:
           filters: *release-and-rc-filters
@@ -5309,22 +5320,22 @@ workflows:
       #     context: determined-production
       #     filters: *release-and-rc-filters
 
-      # - package-and-push-system-rc:
-      #     requires:
-      #       - build-react
-      #       - build-docs
-      #     context: determined-production
-      #     filters: *rc-filters
+      - package-and-push-system-rc:
+          requires:
+            - build-react
+            - build-docs
+          context: determined-production
+          filters: *rc-filters
 
-      # - publish-python-package:
-      #     name: publish-python-package-rc
-      #     matrix:
-      #       parameters:
-      #         path: ["harness", "model_hub"]
-      #     context: determined-production
-      #     filters: *rc-filters
-      #     requires:
-      #       - package-and-push-system-rc
+      - publish-python-package:
+          name: publish-python-package-rc
+          matrix:
+            parameters:
+              path: ["harness", "model_hub"]
+          context: determined-production
+          filters: *rc-filters
+          requires:
+            - package-and-push-system-rc
 
       # - package-and-push-system-release:
       #     requires:
@@ -5355,11 +5366,11 @@ workflows:
       #     context: determined-production
       #     filters: *release-and-rc-filters
 
-      # - publish-helm-gh:
-      #     requires:
-      #       - build-helm
-      #     context: determined-production
-      #     filters: *release-filters
+      - publish-helm-gh:
+          requires:
+            - build-helm
+          context: determined-production
+          filters: *release-filters
 
       # - upload-try-now-template:
       #     context: determined-production
@@ -5393,25 +5404,25 @@ workflows:
       #     context: determined-production
       #     filters: *release-and-rc-filters
 
-      # - package-and-push-system-rc-ee:
-      #     requires:
-      #       - build-react
-      #       - build-docs
-      #     context:
-      #       - determined-ee
-      #       - github-read
-      #     filters: *rc-filters
+      - package-and-push-system-rc-ee:
+          requires:
+            - build-react
+            - build-docs
+          context:
+            - determined-ee
+            - github-read
+          filters: *rc-filters
 
-      # - publish-python-package:
-      #     name: publish-python-package-rc-ee
-      #     matrix:
-      #       parameters:
-      #         path: ["harness"]
-      #         ee: [true]
-      #     context: determined-production
-      #     filters: *rc-filters
-      #     requires:
-      #       - package-and-push-system-rc-ee
+      - publish-python-package:
+          name: publish-python-package-rc-ee
+          matrix:
+            parameters:
+              path: ["harness"]
+              ee: [true]
+          context: determined-production
+          filters: *rc-filters
+          requires:
+            - package-and-push-system-rc-ee
 
       # - package-and-push-system-release-ee:
       #     requires:
@@ -5437,11 +5448,11 @@ workflows:
       #     context: determined-production
       #     filters: *release-filters
 
-      # - publish-helm-gh:
-      #     matrix:
-      #       parameters:
-      #         ee: [true]
-      #     requires:
-      #       - build-helm
-      #     context: determined-production
-      #     filters: *release-filters
+      - publish-helm-gh:
+          matrix:
+            parameters:
+              ee: [true]
+          requires:
+            - build-helm
+          context: determined-production
+          filters: *release-filters
