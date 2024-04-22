@@ -60,6 +60,7 @@
     "concepts/resource-pool",
     "concepts/scheduling",
     "concepts/yaml",
+    "deploy/_index",
     "example-solutions/examples",
     "examples",
     "experiment-config",
